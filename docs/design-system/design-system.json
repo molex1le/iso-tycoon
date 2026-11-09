@@ -1,0 +1,24 @@
+{
+  "v": 3,
+  "assetGroups": {},
+  "blobs": {},
+  "createdOnFiles": {
+    "at": "2026-10-29T17:40:54Z",
+    "v": 1
+  },
+  "docs": {
+    "sections": []
+  },
+  "groups": [],
+  "lastChange": {
+    "at": "2026-10-29T17:58:00Z",
+    "by": "Артём",
+    "note": "Первая версия UI изометрического бизнес-симулятора",
+    "via": "Cowork"
+  },
+  "layout": "files",
+  "libraries": [],
+  "namespace": "IsoTycoon",
+  "sections": {},
+  "title": "Iso Tycoon"
+}

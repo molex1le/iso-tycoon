@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Iso Tycoon – основной экран (пример)</title>
+<link rel="stylesheet" href="../tokens.css">
+<link rel="stylesheet" href="../bundle.css">
+<script src="../bundle.js"></script>
+</head>
+<body style="margin:0;background:#222">
+<!-- Основной игровой экран: карта + HUD. Для ночной темы: <html data-theme="night"> -->
+<div class="it" style="position:relative;width:1280px;height:720px;overflow:hidden;background:var(--surface)">
+  <svg id="map" style="position:absolute;left:-40px;top:-60px;width:1180px;height:760px" preserveAspectRatio="xMidYMid meet"></svg>
+
+  <div style="position:absolute;left:16px;right:16px;top:16px">
+  <div class="it it-panel it-hud">
+    <div class="it-stat"><i class="it-coin"></i><div><div class="lbl">Баланс</div><div class="v">$ 48 250</div></div></div>
+    <div class="it-stat"><div><div class="lbl">Доход / день</div><div class="v money">+ $1 340</div></div></div>
+    <div class="it-stat"><svg class="it-ico" viewBox="0 0 20 20" style="color:var(--coin-shade)"><path d="m10 1.5 2.6 5.3 5.9.9-4.3 4.1 1 5.8L10 14.9l-5.2 2.7 1-5.8L1.5 7.7l5.9-.9z"/></svg><div><div class="lbl">Репутация</div><div class="v">4.2 <span class="d money">▲0.1</span></div></div></div>
+    <div class="it-stat"><svg class="it-ico" viewBox="0 0 20 20" style="color:var(--ink-muted)"><circle cx="10" cy="6" r="3.5"/><path d="M3 18c0-4 3-6.5 7-6.5s7 2.5 7 6.5z"/></svg><div><div class="lbl">Персонал</div><div class="v">23<span class="muted" style="font-weight:400">/30</span></div></div></div>
+    <div class="spacer"></div>
+    <div class="it-date"><div class="lbl">Весна · год 2</div><div style="font-weight:600">День 47</div></div>
+    <div class="it-speed" role="group" aria-label="Скорость"><button aria-label="Пауза">❚❚</button><button class="on">1×</button><button>2×</button><button>3×</button></div>
+  </div>
+  </div>
+
+  <div style="position:absolute;left:16px;top:104px;display:flex;flex-direction:column;gap:8px">
+    <div class="it-panel it-toast" style="width:300px"><span class="dot ok">+</span><div><div style="font-weight:600">Контракт выполнен</div><div class="money num" style="font-size:12px">+ $2 000</div></div></div>
+    <div class="it-panel it-toast" style="width:300px"><span class="dot wr">!</span><div><div style="font-weight:600">Склад кофейни 92%</div><div class="warn" style="font-size:12px">Закупка встанет через 1 день</div></div></div>
+  </div>
+
+  <div class="it-panel it-bp" style="position:absolute;right:16px;top:104px;width:312px;gap:10px">
+    <header>
+      <div class="t"><span class="it-lvl">УР. 2 · КАФЕ</span><div class="ttl" style="margin-top:6px">Кофейня «Зерно»</div></div>
+      <button class="it-btn it-btn--ghost it-btn--icon" aria-label="Закрыть"><svg class="it-ico" viewBox="0 0 20 20"><path d="M5.4 4 10 8.6 14.6 4 16 5.4 11.4 10l4.6 4.6-1.4 1.4-4.6-4.6L5.4 16 4 14.6 8.6 10 4 5.4z"/></svg></button>
+    </header>
+    <div class="it-seg"><button class="on">Обзор</button><button>Персонал</button><button>Цены</button></div>
+    <div class="it-grid">
+      <div class="it-cell"><span class="lbl">Выручка</span><span class="v">$640</span></div>
+      <div class="it-cell"><span class="lbl">Расходы</span><span class="v">$310</span></div>
+      <div class="it-cell"><span class="lbl">Прибыль</span><span class="v money">+$330</span></div>
+    </div>
+    <div><div class="it-row" style="margin-bottom:6px"><span class="lbl grow">Загрузка</span><span class="num">78%</span></div><div class="it-bar"><i style="width:78%"></i></div></div>
+    <div class="it-spark" style="height:44px"><i style="height:55%"></i><i style="height:62%"></i><i class="neg" style="height:18%"></i><i style="height:70%"></i><i style="height:66%"></i><i style="height:84%"></i><i style="height:92%"></i></div>
+    <button class="it-btn it-btn--primary">Улучшить <span class="price"><i class="it-coin"></i>2 400</span></button>
+    <div class="it-row"><button class="it-btn it-btn--secondary grow">Переместить</button><button class="it-btn it-btn--ghost grow loss">Продать</button></div>
+  </div>
+
+  <div class="it-mini" style="position:absolute;left:16px;bottom:16px"><svg id="mini"></svg></div>
+
+  <div class="it-panel it-build" style="position:absolute;left:200px;bottom:16px;width:736px">
+    <div class="it-tabs"><button class="it-tab on">Магазины</button><button class="it-tab">Еда</button><button class="it-tab">Офисы</button><button class="it-tab">Производство</button><button class="it-tab">Дороги</button><button class="it-tab">Декор</button></div>
+    <div class="it-cards" id="cards"></div>
+  </div>
+</div>
+<script>
+var N = 14;
+function ground(x, y) {
+  if (x + y > 22 || (x > 10 && y > 9)) return 'water';
+  if (y === 6 || x === 7 || (y === 10 && x < 7)) return 'road';
+  return 'grass';
+}
+var map = {
+  cols: N, rows: N, maxH: 80, ground: ground,
+  tiles: [{x:12,y:3,cls:'ok'},{x:12,y:4,cls:'ok'}],
+  buildings: [
+    {x:3,y:4,w:2,d:2,h:30,roof:'brick',label:'+$640'},
+    {x:5,y:4,w:1,d:2,h:20,roof:'brick'},
+    {x:8,y:4,w:2,d:2,h:72,roof:'teal',label:'+$1 120'},
+    {x:10,y:4,w:2,d:1,h:40,roof:'teal'},
+    {x:5,y:7,w:2,d:2,h:24,roof:'brick',selected:true,label:'+$330'},
+    {x:2,y:7,w:2,d:2,h:36,roof:'slate'},
+    {x:8,y:9,w:2,d:2,h:28,roof:'slate'},
+    {x:3,y:11,w:2,d:1,h:20,roof:'brick'},
+    {x:12,y:3,w:1,d:2,h:22,roof:'brick',ghost:'ok'},
+    {x:1,y:1,w:2,d:2,h:46,roof:'teal'},
+    {x:8,y:1,w:1,d:1,h:18,roof:'brick'}
+  ],
+  trees: [[0,4],[1,5],[0,8],[4,1],[5,1],[6,2],[11,1],[12,2],[0,12],[1,13],[6,12],[5,13],[9,12],[12,7]]
+};
+IsoTycoon.render(document.getElementById('map'), map);
+IsoTycoon.render(document.getElementById('mini'), {cols:N, rows:N, maxH:0, ground:ground,
+  tiles:[{x:5,y:7,cls:'sel'}]});
+var items = [
+  {n:'Ларёк', p:'1 200', inc:'+$60 / день', b:{w:1,d:1,h:18,roof:'brick'}},
+  {n:'Минимаркет', p:'4 800', inc:'+$180 / день', b:{w:2,d:1,h:22,roof:'brick'}, on:true},
+  {n:'Аптека', p:'7 500', inc:'+$260 / день', b:{w:1,d:1,h:36,roof:'teal'}},
+  {n:'Супермаркет', p:'18 000', inc:'+$640 / день', b:{w:2,d:2,h:30,roof:'brick'}},
+  {n:'ТЦ', p:'95 000', inc:'Не хватает денег', b:{w:2,d:2,h:58,roof:'slate'}, off:true}
+];
+var wrap = document.getElementById('cards');
+items.forEach(function (it) {
+  var c = document.createElement('div');
+  c.className = 'it-card' + (it.on ? ' on' : '') + (it.off ? ' off' : '');
+  c.innerHTML = '<svg></svg><div class="n">' + it.n + '</div><div class="p ' + (it.off ? 'loss' : '') + '"><i class="it-coin"></i>' + it.p + '</div><div class="muted" style="font-size:12px;line-height:16px">' + it.inc + '</div>';
+  wrap.appendChild(c);
+  IsoTycoon.thumb(c.querySelector('svg'), it.b);
+});
+</script>
+</body>
+</html>

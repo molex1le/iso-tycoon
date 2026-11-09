@@ -1,0 +1,33 @@
+/* Раскладка приложения поверх дизайн-системы Iso Tycoon */
+html, body { margin: 0; height: 100%; background: var(--surface); }
+#app { height: 100%; }
+
+.gs { position: relative; width: 100%; height: 100%; min-height: 560px; overflow: hidden; background: var(--surface); transition: background .6s; }
+.gs-map { position: absolute; left: 0; top: 76px; right: 344px; bottom: 0; width: calc(100% - 344px); height: calc(100% - 76px); }
+.gs-top { position: absolute; left: 16px; right: 16px; top: 16px; }
+.gs-side { position: absolute; right: 16px; top: 104px; width: 312px; max-height: calc(100% - 120px); overflow: auto; }
+.gs-debug .it-btn { white-space: nowrap; padding-left: var(--space-2); padding-right: var(--space-2); }
+.gs-debug { position: absolute; left: 16px; top: 104px; width: 260px; padding: var(--space-3); display: flex; flex-direction: column; gap: var(--space-2); }
+.gs-debug[hidden], .gs-end[hidden] { display: none; }
+.gs-end { position: absolute; inset: 0; display: grid; place-items: center; background: #00000059; }
+.gs-hint { position: absolute; left: 16px; bottom: 12px; font-size: 12px; color: var(--ink-muted); }
+
+.it-date { min-width: 150px; }
+.it-speed button:focus-visible, .it-seg button:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
+.iso-float.name text { fill: var(--ink); }
+
+/* вкладка «Цены» */
+.gs-prices { display: flex; flex-direction: column; gap: var(--space-2); }
+.gs-price { display: flex; align-items: center; gap: var(--space-2); background: var(--panel-inset); border-radius: var(--radius-sm); padding: 6px var(--space-2); }
+.gs-price .n { flex: 1; min-width: 0; }
+.gs-price .n b { display: block; font-weight: 600; }
+.gs-price .n span { font-size: 12px; line-height: 16px; color: var(--ink-muted); }
+.gs-price .v { width: 56px; text-align: center; font-weight: 600; font-variant-numeric: tabular-nums; }
+.gs-step { width: 32px; height: 32px; min-height: 32px; padding: 0; font-size: 18px; }
+.gs-facts { display: flex; flex-direction: column; gap: 4px; }
+.gs-facts .it-row { justify-content: space-between; }
+.gs-note { font-size: 12px; line-height: 16px; color: var(--ink-muted); }
+
+@media (max-width: 900px) {
+  .gs-map { right: 0; width: 100%; opacity: .5; }
+}
