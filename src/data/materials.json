@@ -1,0 +1,6 @@
+[
+  { "id": "beans", "name": "Зерно", "cost": 0.35, "shelfLifeDays": 90, "deliveryEveryDays": 7, "needsFridge": false },
+  { "id": "milk", "name": "Молоко", "cost": 0.35, "shelfLifeDays": 7, "deliveryEveryDays": 3, "needsFridge": true },
+  { "id": "tea", "name": "Чай", "cost": 0.2, "shelfLifeDays": 180, "deliveryEveryDays": 7, "needsFridge": false },
+  { "id": "pastry", "name": "Выпечка", "cost": 1.0, "shelfLifeDays": 2, "deliveryEveryDays": 1, "needsFridge": false }
+]

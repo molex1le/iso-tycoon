@@ -1,0 +1,19 @@
+{
+  "ses": {
+    "name": "СЭС",
+    "fullName": "Санитарная служба",
+    "plannedDay": 75,
+    "noticeDays": 10,
+    "reinspectAfterDays": 30,
+    "reinspectFineMultiplier": 2,
+    "contest": { "baseChance": 0.3, "cleanDocsChance": 0.6 },
+    "bribe": { "costShare": 0.5, "caughtChance": 0.2 },
+    "items": [
+      { "id": "cleanliness", "name": "Чистота зала и стойки", "type": "live", "fine": 300, "suspensionDays": 0, "docs": false, "hint": "Падает каждый день. Уборщица замедляет втрое, срочная уборка возвращает 100." },
+      { "id": "fridge", "name": "Холодильник для молока", "type": "static", "fine": 500, "suspensionDays": 3, "docs": false, "hint": "Нет холодильника – приостановка на 3 дня и молоко живёт 2 дня вместо 7." },
+      { "id": "medbooks", "name": "Медкнижки у персонала", "type": "static", "fine": 200, "suspensionDays": 0, "docs": true, "hint": "Штраф за каждого сотрудника без медкнижки." },
+      { "id": "supplierDocs", "name": "Документы на продукты", "type": "live", "fine": 300, "suspensionDays": 0, "docs": true, "hint": "У дешёвого поставщика документы есть не всегда." },
+      { "id": "damp", "name": "Сырость и плесень", "type": "static", "fine": 400, "suspensionDays": 0, "docs": false, "hint": "Скрытый дефект помещения. Находит осмотр до аренды или консультант." }
+    ]
+  }
+}

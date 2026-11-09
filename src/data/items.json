@@ -1,7 +1,7 @@
 [
-  { "id": "espresso", "name": "Эспрессо", "kind": "drink", "defaultPrice": 2.0, "cost": 0.35, "share": 0.15 },
-  { "id": "cappuccino", "name": "Капучино", "kind": "drink", "defaultPrice": 3.0, "cost": 0.7, "share": 0.4 },
-  { "id": "raf", "name": "Раф", "kind": "drink", "defaultPrice": 3.8, "cost": 0.9, "share": 0.2 },
-  { "id": "tea", "name": "Чай", "kind": "drink", "defaultPrice": 1.8, "cost": 0.2, "share": 0.1 },
-  { "id": "croissant", "name": "Круассан", "kind": "addon", "defaultPrice": 2.5, "cost": 1.0, "share": 0.25 }
+  { "id": "espresso", "name": "Эспрессо", "kind": "drink", "defaultPrice": 2.0, "share": 0.15, "recipe": { "beans": 1 } },
+  { "id": "cappuccino", "name": "Капучино", "kind": "drink", "defaultPrice": 3.0, "share": 0.4, "recipe": { "beans": 1, "milk": 1 } },
+  { "id": "raf", "name": "Раф", "kind": "drink", "defaultPrice": 3.8, "share": 0.2, "recipe": { "beans": 1, "milk": 1.5 } },
+  { "id": "tea", "name": "Чай", "kind": "drink", "defaultPrice": 1.8, "share": 0.1, "recipe": { "tea": 1 } },
+  { "id": "croissant", "name": "Круассан", "kind": "addon", "defaultPrice": 2.5, "share": 0.25, "recipe": { "pastry": 1 } }
 ]

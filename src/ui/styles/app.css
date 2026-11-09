@@ -31,3 +31,31 @@ html, body { margin: 0; height: 100%; background: var(--surface); }
 @media (max-width: 900px) {
   .gs-map { right: 0; width: 100%; opacity: .5; }
 }
+
+/* --- слой 2: карта на весь экран, вкладки, карточки, окна --- */
+.gs-map { left: 0; top: 0; right: 0; bottom: 0; width: 100%; height: 100%; opacity: 1 !important; overflow: hidden; }
+.gs-side { width: 348px; }
+.gs-tabs { flex-wrap: wrap; }
+.gs-tabs .it-tab { padding: 8px 10px; }
+.gs-toasts { position: absolute; left: 16px; bottom: 40px; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+.gs-debug { z-index: 3; }
+.gs-end { z-index: 5; overflow: auto; padding: 16px; }
+.gs-modal { width: min(440px, 100%); max-height: 100%; overflow: auto; }
+.gs-card { background: var(--panel-inset); border-radius: var(--radius-sm); padding: 8px; display: flex; flex-direction: column; gap: 4px; }
+.gs-mini { min-height: 30px; padding: 4px 10px; font-size: 13px; }
+.gs-wrap { flex-wrap: wrap; }
+.it-bar.bad > i { background: var(--danger); }
+.gs-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.gs-table td { padding: 4px 0; border-bottom: 1px solid var(--border); }
+.gs-table td:last-child { text-align: right; font-weight: 600; }
+.gs-table tr.total td { border-bottom: 0; border-top: 2px solid var(--ink); font-size: 16px; }
+.gs-inspector { flex-direction: row; gap: 10px; align-items: flex-start; }
+.gs-face { width: 48px; height: 48px; flex: none; border-radius: 50%; background: var(--deep); color: var(--on-deep); display: grid; place-items: center; font: 400 16px var(--font-display); }
+.gs-checks { display: flex; flex-direction: column; gap: 4px; }
+.gs-check { display: flex; gap: 8px; align-items: center; padding: 6px 8px; border-radius: var(--radius-sm); background: var(--panel-inset); }
+.gs-check .mark { width: 20px; text-align: center; font-weight: 700; }
+.gs-check.wait { opacity: .45; } .gs-check.now { outline: 2px solid var(--coin); }
+.gs-check.ok .mark { color: var(--money); } .gs-check.bad { background: #c0352b1f; } .gs-check.bad .mark { color: var(--danger); }
+.it-choice small { font-weight: 400; opacity: .8; }
+.it-choice { min-height: 52px; }
+.gs-hint { background: var(--panel); padding: 2px 8px; border-radius: 8px; }

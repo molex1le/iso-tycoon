@@ -1,0 +1,68 @@
+/* Сцена района. --dim, --lit, --glow, --dusk задаёт SceneView по времени суток. */
+.gs-map { --dim: 0%; --lit: 0%; --glow: 0; --dusk: 0; --nightc: #141c33;
+  background: color-mix(in srgb, #bfe3f2 calc(100% - var(--dim) * 1.5), #0d1326); }
+.scene { width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; user-select: none; }
+.scene.dragging { cursor: grabbing; }
+.scene .pick { cursor: pointer; }
+
+.scene polygon, .scene ellipse, .scene rect, .scene circle { stroke: #0000001c; stroke-width: .6; }
+.f-l { fill: color-mix(in srgb, var(--m) calc(100% - var(--dim)), var(--nightc)); }
+.f-r { fill: color-mix(in srgb, color-mix(in srgb, var(--m) 80%, #20160a) calc(100% - var(--dim)), var(--nightc)); }
+.f-t { fill: color-mix(in srgb, color-mix(in srgb, var(--m) 88%, #fff) calc(100% - var(--dim)), var(--nightc)); }
+
+.m-panel { --m: #e4dccb; } .m-panel2 { --m: #cdd6da; } .m-brick { --m: #b9694a; } .m-plaster { --m: #f3e3bf; }
+.m-plaster2 { --m: #ecc98a; } .m-plaster3 { --m: #bcd8c4; } .m-white { --m: #f7f2e8; } .m-cream { --m: #fbecce; }
+.m-wood { --m: #a8754a; } .m-wooddark { --m: #7a5238; } .m-concrete { --m: #bdb8ab; } .m-roofgrey { --m: #8c94a2; }
+.m-tile { --m: #c4512d; } .m-slateroof { --m: #5a6b82; } .m-greenroof { --m: #2f9e8f; } .m-glassbody { --m: #6fb3d2; }
+.m-metroglass { --m: #a9dcec; } .m-metroroof { --m: #2d4f8a; } .m-red { --m: #d23a2e; } .m-chainred { --m: #d8432f; }
+.m-green { --m: #2f8f5b; } .m-blue { --m: #2f6fb5; } .m-orange { --m: #e58a2b; } .m-yellow { --m: #f2c84b; }
+.m-coffee { --m: #4a2f21; } .m-car1 { --m: #d9534f; } .m-car2 { --m: #4f8fd9; } .m-car3 { --m: #f2f2ee; } .m-car4 { --m: #f2b632; }
+.m-carglass { --m: #2c3e50; }
+
+.tile { stroke: #0000000f; }
+.tile.grass { --m: #8ccf6e; } .tile.grass-2 { --m: #80c464; } .tile.road { --m: #6f7480; } .tile.pave { --m: #d8cfbc; } .tile.water { --m: #5ab4e0; }
+.tile { fill: color-mix(in srgb, var(--m) calc(100% - var(--dim)), var(--nightc)); }
+.zebra, .lane { fill: color-mix(in srgb, #f4f1e8 calc(100% - var(--dim)), var(--nightc)); stroke: none !important; }
+
+.win { fill: color-mix(in srgb, #9ad8f2 calc(100% - var(--lit)), #ffd772); stroke: #00000030; }
+.win.off { fill: color-mix(in srgb, #9ad8f2 calc(100% - var(--lit)), #28324a); }
+.win.vitrine { fill: color-mix(in srgb, #b9e6f5 calc(100% - var(--lit)), #ffe08a); }
+.balcony { fill: color-mix(in srgb, #a8a294 calc(100% - var(--dim)), var(--nightc)); }
+.door { fill: color-mix(in srgb, #6e4a33 calc(100% - var(--dim)), var(--nightc)); }
+.door.glassdoor { fill: color-mix(in srgb, #7fc4e0 calc(100% - var(--lit)), #ffe08a); }
+.dark { fill: #1c2030; } .step { stroke: #555c70; stroke-width: 1; }
+.pole, .mullion { stroke: color-mix(in srgb, #5d6470 calc(100% - var(--dim)), var(--nightc)); stroke-width: 1.4; }
+.mullion { stroke-width: .8; }
+.trunk { stroke: #7a5238; stroke-width: 3; stroke-linecap: round; }
+.glass-thin { fill: #a9dcec80; }
+.sign-text { font-family: var(--font-display); fill: #fff8e6; stroke: none; letter-spacing: .04em; }
+.metro-badge { fill: #d23a2e; stroke: #fff !important; stroke-width: 1.5 !important; }
+.metro-m { font-family: var(--font-display); fill: #fff; }
+.craft-badge { fill: #2f8f5b; stroke: #fff8e6 !important; stroke-width: 1.2 !important; }
+.craft-letter { font-family: var(--font-display); fill: #fff8e6; }
+.stop-badge { fill: #f2b632; }
+.tabletop { fill: #f7f2e8; }
+.tape { fill: #f2c84b; stroke: #2a2118 !important; } .tape-text { font: 700 5.5px var(--font-sans); fill: #2a2118; }
+.shadow { fill: #00000026; stroke: none !important; }
+.leaf { fill: color-mix(in srgb, #3f8f4a calc(100% - var(--dim)), var(--nightc)); }
+.leaf.hi { fill: color-mix(in srgb, #5fae5c calc(100% - var(--dim)), var(--nightc)); stroke: none !important; }
+.leaf.dark { fill: color-mix(in srgb, #2f7350 calc(100% - var(--dim)), var(--nightc)); }
+.bed { fill: #7a5238; } .flower { stroke: none !important; } .flower.c0 { fill: #f26d6d; } .flower.c1 { fill: #f2c84b; } .flower.c2 { fill: #f7f2e8; }
+.lamp-head { fill: color-mix(in srgb, #dcdcdc calc(100% - var(--lit)), #fff3b0); }
+.lamp-glow { fill: #ffe9a0; opacity: calc(var(--glow) * .22); stroke: none !important; pointer-events: none; }
+.steam { fill: #ffffffb0; stroke: none !important; animation: steam 2.7s linear infinite; }
+@keyframes steam { from { transform: translateY(0); opacity: .8; } to { transform: translateY(-26px); opacity: 0; } }
+.select-ring { fill: #ffd84a40; stroke: #ffd84a !important; stroke-width: 2.5 !important; }
+.pin { fill: var(--coin); stroke: var(--coin-shade) !important; stroke-width: 1.5 !important; animation: pin 1.2s ease-in-out infinite alternate; }
+@keyframes pin { to { transform: translateY(-5px); } }
+
+.person .head { fill: color-mix(in srgb, #f1c9a5 calc(100% - var(--dim)), var(--nightc)); }
+.person .body { fill: color-mix(in srgb, var(--m) calc(100% - var(--dim)), var(--nightc)); }
+.person .cup { fill: #fff; stroke: #c98a12 !important; }
+.pc0 { --m: #d9534f; } .pc1 { --m: #4f8fd9; } .pc2 { --m: #f2b632; } .pc3 { --m: #5a6b82; } .pc4 { --m: #2f9e8f; } .pc5 { --m: #8e5bb5; }
+
+.float { font: 700 20px var(--font-sans); paint-order: stroke; stroke: #fffaf0; stroke-width: 4px; animation: floatup 2.2s ease-out forwards; }
+.float.money { fill: #17703d; } .float.loss { fill: #b42318; }
+@keyframes floatup { from { transform: translateY(0); opacity: 1; } to { transform: translateY(-46px); opacity: 0; } }
+.gs-map::after { content: ""; position: absolute; inset: 0; background: #ff8a3c; opacity: var(--dusk); pointer-events: none; mix-blend-mode: soft-light; }
+@media (prefers-reduced-motion: reduce) { .steam, .pin, .float { animation-duration: .01s; } }

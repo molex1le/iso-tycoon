@@ -1,0 +1,5 @@
+[
+  { "id": "ses-formalist", "agency": "ses", "name": "Регина Аркадьевна Штольц", "trait": "formalist", "traitName": "Формалист", "k": 1.3, "focus": "docs", "focusFactor": 1.5, "text": "Первым делом просит папку с документами. Бумаги у неё важнее пола." },
+  { "id": "ses-practical", "agency": "ses", "name": "Тимур Ильич Важенин", "trait": "practical", "traitName": "Практик", "k": 1.0, "focus": "cleanliness", "focusFactor": 1.3, "text": "Проводит пальцем по стойке и заглядывает под кофемашину. Бумаги листает быстро." },
+  { "id": "ses-tired", "agency": "ses", "name": "Лев Борисович Кручина", "trait": "tired", "traitName": "Уставший", "k": 0.7, "focus": null, "focusFactor": 1, "text": "Это его шестая кофейня за день. Проверяет поверхностно, но явное не пропустит." }
+]
