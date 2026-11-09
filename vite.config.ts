@@ -8,5 +8,6 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: balance ? ['scripts/**/*.sim.ts'] : ['tests/**/*.test.ts'],
+    setupFiles: balance ? [] : ['tests/setup.ts'],
   },
 });

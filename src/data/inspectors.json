@@ -1,5 +1,134 @@
 [
-  { "id": "ses-formalist", "agency": "ses", "name": "Регина Аркадьевна Штольц", "trait": "formalist", "traitName": "Формалист", "k": 1.3, "focus": "docs", "focusFactor": 1.5, "text": "Первым делом просит папку с документами. Бумаги у неё важнее пола." },
-  { "id": "ses-practical", "agency": "ses", "name": "Тимур Ильич Важенин", "trait": "practical", "traitName": "Практик", "k": 1.0, "focus": "cleanliness", "focusFactor": 1.3, "text": "Проводит пальцем по стойке и заглядывает под кофемашину. Бумаги листает быстро." },
-  { "id": "ses-tired", "agency": "ses", "name": "Лев Борисович Кручина", "trait": "tired", "traitName": "Уставший", "k": 0.7, "focus": null, "focusFactor": 1, "text": "Это его шестая кофейня за день. Проверяет поверхностно, но явное не пропустит." }
+  {
+    "id": "ses-formalist",
+    "agency": "ses",
+    "name": "Регина Аркадьевна Штольц",
+    "trait": "formalist",
+    "traitName": "Формалист",
+    "k": 1.3,
+    "focus": "docs",
+    "focusFactor": 1.5,
+    "text": "Первым делом просит папку с документами. Бумаги у неё важнее пола."
+  },
+  {
+    "id": "ses-practical",
+    "agency": "ses",
+    "name": "Тимур Ильич Важенин",
+    "trait": "practical",
+    "traitName": "Практик",
+    "k": 1.0,
+    "focus": "cleanliness",
+    "focusFactor": 1.3,
+    "text": "Проводит пальцем по стойке и заглядывает под кофемашину. Бумаги листает быстро."
+  },
+  {
+    "id": "ses-tired",
+    "agency": "ses",
+    "name": "Лев Борисович Кручина",
+    "trait": "tired",
+    "traitName": "Уставший",
+    "k": 0.7,
+    "focus": null,
+    "focusFactor": 1,
+    "text": "Это его шестая кофейня за день. Проверяет поверхностно, но явное не пропустит."
+  },
+  {
+    "id": "fire-formalist",
+    "agency": "fire",
+    "name": "Ольга Степановна Брандт",
+    "trait": "formalist",
+    "traitName": "Формалист",
+    "k": 1.3,
+    "focus": "docs",
+    "focusFactor": 1.5,
+    "text": "Проверяет даже дату на бирке огнетушителя."
+  },
+  {
+    "id": "fire-practical",
+    "agency": "fire",
+    "name": "Сержант Павел Шевчук",
+    "trait": "practical",
+    "traitName": "Практик",
+    "k": 1.0,
+    "focus": "fireCondition",
+    "focusFactor": 1.3,
+    "text": "Бьёт кулаком по щитку и нюхает проводку."
+  },
+  {
+    "id": "fire-tired",
+    "agency": "fire",
+    "name": "Аркадий Ефимович Тлеющих",
+    "trait": "tired",
+    "traitName": "Уставший",
+    "k": 0.7,
+    "focus": null,
+    "focusFactor": 1,
+    "text": "До пенсии два года. Лишнего не ищет."
+  },
+  {
+    "id": "labour-formalist",
+    "agency": "labour",
+    "name": "Инга Рудольфовна Табель",
+    "trait": "formalist",
+    "traitName": "Формалист",
+    "k": 1.3,
+    "focus": "docs",
+    "focusFactor": 1.5,
+    "text": "Сверяет договоры с графиком смен строка за строкой."
+  },
+  {
+    "id": "labour-practical",
+    "agency": "labour",
+    "name": "Семён Викторович Прямой",
+    "trait": "practical",
+    "traitName": "Практик",
+    "k": 1.0,
+    "focus": "overtime",
+    "focusFactor": 1.3,
+    "text": "Разговаривает с бариста без директора."
+  },
+  {
+    "id": "labour-tired",
+    "agency": "labour",
+    "name": "Нина Павловна Отгулова",
+    "trait": "tired",
+    "traitName": "Уставший",
+    "k": 0.7,
+    "focus": null,
+    "focusFactor": 1,
+    "text": "Берёт объяснительную и уходит на обед."
+  },
+  {
+    "id": "tax-formalist",
+    "agency": "tax",
+    "name": "Эдуард Львович Сальдо",
+    "trait": "formalist",
+    "traitName": "Формалист",
+    "k": 1.3,
+    "focus": "docs",
+    "focusFactor": 1.5,
+    "text": "Любит сверку. Особенно за прошлый квартал."
+  },
+  {
+    "id": "tax-practical",
+    "agency": "tax",
+    "name": "Марина Олеговна Чекова",
+    "trait": "practical",
+    "traitName": "Практик",
+    "k": 1.0,
+    "focus": "offbook",
+    "focusFactor": 1.3,
+    "text": "Зашла как клиент, взяла капучино и попросила чек."
+  },
+  {
+    "id": "tax-tired",
+    "agency": "tax",
+    "name": "Гурий Матвеевич Проводкин",
+    "trait": "tired",
+    "traitName": "Уставший",
+    "k": 0.7,
+    "focus": null,
+    "focusFactor": 1,
+    "text": "Отчётный период, сорок компаний на столе."
+  }
 ]

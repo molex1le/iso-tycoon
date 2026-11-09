@@ -2,7 +2,19 @@ import { clamp, round2, type GameConfig } from './config';
 import { say } from './feed';
 import { nextRandom } from './rng';
 import { baristas, hoursPerWeek } from './shop';
-import type { GameState } from './state';
+import type { Employee, GameState } from './state';
+
+/** Лояльность 0–100: оформление, зарплата против рынка, усталость, события. */
+export function loyaltyOf(e: Employee, cfg: GameConfig): number {
+  const s = cfg.balance.staff;
+  return Math.round(
+    clamp(
+      s.loyaltyBase + (e.official ? s.loyaltyOfficial : s.loyaltyEnvelope) + (e.salary - s.marketSalary) * s.loyaltyPerSalary - e.fatigue * s.loyaltyPerFatigue + e.loyaltyBonus,
+      0,
+      100,
+    ),
+  );
+}
 
 /** Утро: готовые медкнижки. */
 export function finishMedBooks(state: GameState, cfg: GameConfig): void {

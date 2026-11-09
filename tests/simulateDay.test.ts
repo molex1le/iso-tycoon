@@ -15,7 +15,8 @@ const opts = (over: Partial<NewGameOptions> = {}): NewGameOptions => ({ ...defau
 export function closePending(s: GameState, cfg = defaultConfig): void {
   while (s.pending.length && !s.finished) {
     const p = s.pending[0];
-    if (p.kind === 'inspectionVisit' && p.totalFine > 0) applyCommand(s, { type: 'ResolveInspection', choice: 'accept' }, cfg);
+    if (p.kind === 'event') applyCommand(s, { type: 'ChooseEventOption', index: 0 }, cfg);
+    else if (p.kind === 'inspectionVisit' && p.totalFine > 0) applyCommand(s, { type: 'ResolveInspection', choice: 'accept' }, cfg);
     else applyCommand(s, { type: 'Acknowledge' }, cfg);
   }
 }
@@ -174,16 +175,43 @@ describe('расходы и налоги', () => {
     expect(s.history[29].expenses.services).toBe(300);
   });
 
-  it('6% с выручки: начисляется в конце квартала, списывается через 25 дней', () => {
+  it('6% с выручки: начисляется в конце квартала, платится по кнопке', () => {
     const s = createInitialState(4);
     advance(s, 90);
     const revenue = s.history.reduce((a, r) => a + r.revenue, 0);
-    expect(s.tax.due!.amount).toBeCloseTo(revenue * 0.06, 1);
-    expect(s.tax.due!.payDay).toBe(115);
-    const due = s.tax.due!.amount;
-    advance(s, 25);
+    const due = s.tax.due!;
+    expect(due.amount).toBeCloseTo(revenue * 0.06, 1);
+    expect(due).toMatchObject({ declareBy: 110, payBy: 115, filed: false });
+    expect(applyCommand(s, { type: 'PayTax' })).toBe(false); // сначала декларация
+    expect(applyCommand(s, { type: 'FileDeclaration' })).toBe(true);
+    const cash = s.cash;
+    expect(applyCommand(s, { type: 'PayTax' })).toBe(true);
+    expect(s.cash).toBeCloseTo(cash - due.amount, 2);
     expect(s.tax.due).toBeNull();
-    expect(s.history[114].expenses.tax).toBe(due);
+  });
+
+  it('забыл про налог: штраф за неподачу, пени, блокировка счёта и снижение шкалы', () => {
+    const s = createInitialState(4);
+    applyCommand(s, { type: 'DebugAddMoney', amount: 50000 });
+    advance(s, 90);
+    const amount = s.tax.due!.amount;
+    advance(s, 21); // день 111 посчитан
+    expect(s.tax.lateCount).toBe(1);
+    expect(s.tax.due!.penalty).toBeCloseTo(200 + amount * 0.05, 1);
+    advance(s, 40);
+    expect(s.tax.lateCount).toBe(2);
+    expect(s.feed.some((f) => f.key === 'accountBlocked')).toBe(true);
+    const purchases = s.history.slice(-3).reduce((a, r) => a + (r.expenses.purchases ?? 0), 0);
+    expect(purchases).toBe(0);
+  });
+
+  it('с бухгалтером декларация и оплата проходят сами', () => {
+    const s = createInitialState(4, opts({ form: 'ooo' }));
+    applyCommand(s, { type: 'DebugAddMoney', amount: 50000 });
+    advance(s, 115);
+    expect(s.tax.due).toBeNull();
+    expect(s.tax.paidTotal).toBeGreaterThan(0);
+    expect(s.tax.lateCount).toBe(0);
   });
 
   it('15% с прибыли: база – выручка минус подтверждённые расходы, но не меньше 1% выручки', () => {
@@ -317,9 +345,11 @@ describe('команды', () => {
   it('покупка оборудования: профессиональная машина поднимает качество и мощность', () => {
     const s = createInitialState(1);
     const q = demandView(s, defaultConfig).quality;
+    expect(applyCommand(s, { type: 'BuyEquipment', id: 'machinePro' })).toBe(false); // не хватает денег
+    applyCommand(s, { type: 'DebugAddMoney', amount: 10000 });
     const cash = s.cash;
     expect(applyCommand(s, { type: 'BuyEquipment', id: 'machinePro' })).toBe(true);
-    expect(s.cash).toBe(cash - 9000);
+    expect(s.cash).toBeCloseTo(cash - 9000, 2);
     expect(demandView(s, defaultConfig).quality).toBeCloseTo(q + 0.2);
     expect(applyCommand(s, { type: 'BuyEquipment', id: 'machinePro' })).toBe(false);
   });

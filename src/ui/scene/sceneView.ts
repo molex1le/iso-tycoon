@@ -1,5 +1,5 @@
 /* Живая карта района: статичная сцена, пешеходы, время суток, камера. Только отображение – на игру не влияет. */
-import { BUILDINGS, MAP, PROPS, drawBuilding, drawProp, ground, type ShopLook } from './models';
+import { BUILDINGS, MAP, PROPS, drawBuilding, drawCar, drawProp, ground, type ShopLook } from './models';
 import { Pen, TH, TW, svgEl } from './pen';
 
 const MAX_H = 215;
@@ -16,6 +16,17 @@ interface Static {
 }
 
 type Pt = [number, number];
+
+interface Car {
+  node: SVGElement;
+  axis: 'x' | 'y';
+  /** постоянная координата полосы */
+  lane: number;
+  pos: number;
+  dir: 1 | -1;
+  speed: number;
+  anchor: Element | null | undefined;
+}
 
 interface Walker {
   node: SVGElement;
@@ -76,6 +87,7 @@ export class SceneView {
   private pen: Pen;
   private statics: Static[] = [];
   private walkers: Walker[] = [];
+  private cars: Car[] = [];
   private queueNodes: SVGElement[] = [];
   private look: ShopLook | null = null;
   private selected: string | null = null;
@@ -96,11 +108,54 @@ export class SceneView {
     this.pen = new Pen(this.gObj, W / 2, MAX_H + 24);
     this.drawGround();
     // камера смотрит на перекрёсток, чуть левее – справа панель
-    const [cx, cy] = this.pen.pt(10.5, 9);
-    this.cam.x = W / 2 - cx * this.cam.s + 40;
-    this.cam.y = H / 2 - cy * this.cam.s + 60;
-    this.applyCam();
+    this.centerCamera();
     this.bindCamera();
+    this.spawnCars();
+  }
+
+  /** Кофейня и метро – в свободной части экрана: слева от панели и под верхней полосой. */
+  private centerCamera(): void {
+    const r = this.svg.getBoundingClientRect();
+    const u = this.unit();
+    const panel = r.width > 900 ? 364 : 0;
+    const freeW = Math.max(240, r.width - panel) * u;
+    const [ax, ay] = this.pen.pt(6.5, 7);
+    const [bx, by] = this.pen.pt(13, 7);
+    this.cam.s = Math.min(1.7, Math.max(0.75, freeW / (bx - ax + 380)));
+    const sx = (r.width - panel) / 2;
+    const sy = (r.height + 80) / 2;
+    const vx = (sx - r.width / 2) * u + W / 2;
+    const vy = (sy - r.height / 2) * u + H / 2;
+    this.cam.x = vx - ((ax + bx) / 2) * this.cam.s;
+    this.cam.y = vy - ((ay + by) / 2) * this.cam.s;
+    this.applyCam();
+  }
+
+  private spawnCars(): void {
+    const lanes: [Car['axis'], number, 1 | -1][] = [['x', 9.5, 1], ['x', 10.14, -1], ['y', 9.5, -1], ['y', 10.14, 1]];
+    lanes.forEach(([axis, lane, dir], i) => {
+      for (let k = 0; k < 2; k++) {
+        const node = svgEl('g', { class: 'car' });
+        drawCar(new Pen(node, 0, 0), 0, 0, axis, (i * 2 + k + 1) % 4);
+        this.cars.push({ node, axis, lane, dir, pos: Math.random() * MAP, speed: 1.6 + Math.random() * 0.8, anchor: undefined });
+      }
+    });
+  }
+
+  private moveCars(step: number): void {
+    for (const c of this.cars) {
+      c.pos += c.dir * c.speed * step;
+      if (c.pos > MAP) c.pos -= MAP;
+      if (c.pos < 0) c.pos += MAP;
+      const p: Pt = c.axis === 'x' ? [c.pos, c.lane] : [c.lane, c.pos];
+      const [sx, sy] = this.pen.pt(p[0], p[1]);
+      c.node.setAttribute('transform', `translate(${sx.toFixed(1)},${sy.toFixed(1)})`);
+      const anchor = this.anchorFor(p);
+      if (anchor !== c.anchor || !c.node.parentNode) {
+        this.gObj.insertBefore(c.node, anchor);
+        c.anchor = anchor;
+      }
+    }
   }
 
   // ---------- сцена ----------
@@ -154,6 +209,7 @@ export class SceneView {
     this.statics.sort((a, b) => a.key - b.key);
     for (const s of this.statics) this.gObj.appendChild(s.node);
     for (const w of this.walkers) w.anchor = undefined;
+    for (const c of this.cars) c.anchor = undefined;
     this.placeQueue();
   }
 
@@ -236,6 +292,7 @@ export class SceneView {
     this.applyNight(night);
     if (speed === 0) return;
     const step = dt * speed;
+    this.moveCars(step);
     const dayness = hour >= 7 && hour < 22 ? 1 : 0.12;
     this.spawnDebt += step * 1.6 * dayness * Math.min(2, this.flow.traffic / 950);
     while (this.spawnDebt >= 1) {

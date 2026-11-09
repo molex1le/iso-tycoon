@@ -1,4 +1,6 @@
 import balanceJson from '../data/balance.json';
+import eventsJson from '../data/events.json';
+import reviewsJson from '../data/reviews.json';
 import inspectionsJson from '../data/inspections.json';
 import inspectorsJson from '../data/inspectors.json';
 import itemsJson from '../data/items.json';
@@ -13,6 +15,10 @@ export type FormId = keyof Balance['forms'];
 export type TaxRegimeId = keyof Balance['taxes']['regimes'];
 export type SupplierId = keyof Balance['suppliers'];
 export type EquipmentId = keyof Balance['equipment'];
+export type AgencyId = 'ses' | 'fire' | 'labour' | 'tax';
+export type LoanProductId = keyof Balance['loans']['products'];
+export type AccountingId = 'self' | 'outsource' | 'staff';
+export const AGENCIES: AgencyId[] = ['ses', 'fire', 'labour', 'tax'];
 
 export interface Item {
   id: string;
@@ -62,6 +68,70 @@ export interface Inspector {
 
 export type Inspections = typeof inspectionsJson;
 
+export interface EventFx {
+  cash?: number;
+  awareness?: number;
+  reputation?: number;
+  cleanliness?: number;
+  closeDays?: number;
+  machineDownDays?: number;
+  retailMilk?: number;
+  fatigueAll?: number;
+  fatigueTarget?: number;
+  loyaltyAll?: number;
+  loyaltyTarget?: number;
+  raiseTarget?: number;
+  leaveTarget?: number;
+  officializeTarget?: number;
+  contractWeeks?: number;
+  rentFactor?: number;
+  taxRateDelta?: number;
+  skipInspection?: number;
+  inspect?: AgencyId;
+  flow?: { factor: number; days: number };
+  materialCost?: { factor: number; days: number };
+}
+
+export interface EventOption {
+  label: string;
+  note?: string;
+  cost?: number;
+  costPerHead?: number;
+  /** шанс успеха 0..1; 'grade' – зависит от кредитной истории */
+  chance?: number | 'grade';
+  okText?: string;
+  failText?: string;
+  fx: EventFx;
+  fxFail?: EventFx;
+}
+
+export interface EventDef {
+  id: string;
+  title: string;
+  text: string;
+  when: {
+    trigger?: string;
+    dailyChance?: number;
+    weeklyChance?: number;
+    once?: boolean;
+    cooldown?: number;
+    minMonth?: number;
+    form?: string;
+    hasMachine?: boolean;
+    cleanBelow?: number;
+    repBelow?: number;
+    fatigueAbove?: number;
+    loyaltyBelow?: number;
+    envelopeStaff?: boolean;
+    target?: boolean;
+    role?: string;
+    announced?: boolean;
+    lateWriteOff?: boolean;
+    shareAbove?: string;
+  };
+  options: EventOption[];
+}
+
 export interface GameConfig {
   balance: Balance;
   items: Item[];
@@ -69,6 +139,8 @@ export interface GameConfig {
   inspections: Inspections;
   inspectors: Inspector[];
   names: string[];
+  events: EventDef[];
+  reviews: Record<string, string[]>;
   texts: Record<string, { title: string; text: string }>;
 }
 
@@ -79,6 +151,8 @@ export const defaultConfig: GameConfig = {
   inspections: inspectionsJson,
   inspectors: inspectorsJson,
   names: namesJson,
+  events: eventsJson as unknown as EventDef[],
+  reviews: reviewsJson,
   texts: textsJson,
 };
 

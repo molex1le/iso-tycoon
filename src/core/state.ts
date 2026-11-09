@@ -1,17 +1,22 @@
 import type { Command } from './commands';
 import {
+  AGENCIES,
+  clamp,
   defaultConfig,
   round2,
-  clamp,
+  type AccountingId,
+  type AgencyId,
   type DifficultyId,
   type EquipmentId,
   type FormId,
   type GameConfig,
+  type LoanProductId,
   type LocationId,
   type SupplierId,
   type TaxRegimeId,
 } from './config';
 import { orderQuantity, shelfLife } from './inventory';
+import { makeLoan } from './loans';
 import { nextRandom, seedToState } from './rng';
 
 export interface Competitor {
@@ -20,6 +25,9 @@ export interface Competitor {
   quality: number;
   avgCheck: number;
   reputation: number;
+  lowShareDays: number;
+  /** закрыт до этого дня включительно (0 – работает) */
+  closedUntilDay: number;
 }
 
 export interface Employee {
@@ -33,6 +41,9 @@ export interface Employee {
   medBookReadyDay: number | null;
   fatigue: number;
   hiredDay: number;
+  official: boolean;
+  /** накопленные события: премии, отказы */
+  loyaltyBonus: number;
 }
 
 export interface Candidate {
@@ -51,11 +62,15 @@ export interface Batch {
   unitCost: number;
 }
 
+export type InspectionReason = 'planned' | 'unplanned' | 'repeat';
+
 export interface Inspection {
   id: number;
-  agency: 'ses';
+  agency: AgencyId;
   inspectorId: string;
-  reason: 'planned' | 'unplanned' | 'repeat';
+  reason: InspectionReason;
+  /** за что пришли – показывается игроку */
+  cause: string;
   noticeDay: number;
   visitDay: number;
   fineMultiplier: number;
@@ -75,16 +90,18 @@ export interface VisitResult {
 export type Pending =
   | { kind: 'monthReport'; month: number }
   | { kind: 'inspectionNotice'; inspectionId: number }
+  | { kind: 'event'; eventId: string; targetId: number | null; vars: Record<string, string> }
   | {
       kind: 'inspectionVisit';
+      agency: AgencyId;
       inspectorId: string;
-      reason: Inspection['reason'];
+      reason: InspectionReason;
       results: VisitResult[];
       totalFine: number;
       suspensionDays: number;
     };
 
-export type ExpenseCategory = 'purchases' | 'rent' | 'payroll' | 'utilities' | 'services' | 'equipment' | 'tax' | 'fines';
+export type ExpenseCategory = 'purchases' | 'rent' | 'payroll' | 'utilities' | 'services' | 'equipment' | 'marketing' | 'tax' | 'loans' | 'fines';
 
 export type Outcome = 'year' | 'bankrupt' | 'closed' | 'criminal';
 
@@ -93,6 +110,12 @@ export interface FeedEntry {
   tone: 'ok' | 'warn' | 'bad' | 'info';
   key: string;
   title: string;
+  text: string;
+}
+
+export interface Review {
+  day: number;
+  stars: number;
   text: string;
 }
 
@@ -147,6 +170,11 @@ export interface NewGameOptions {
   repair: 'cosmetic' | 'full';
   machine: 'machineBasic' | 'machinePro';
   extras: EquipmentId[];
+  accounting: AccountingId;
+  /** сумма стартового кредита «Старт», 0 – без кредита */
+  startLoan: number;
+  /** первые два бариста: официально или «в конверте» */
+  startStaffOfficial: boolean;
 }
 
 export interface SetupLine {
@@ -155,9 +183,38 @@ export interface SetupLine {
   amount: number;
 }
 
+export interface Loan {
+  id: number;
+  product: LoanProductId;
+  principal: number;
+  /** остаток основного долга */
+  balance: number;
+  annualRate: number;
+  months: number;
+  payment: number;
+  nextPayDay: number;
+  /** просроченная сумма с пенями */
+  overdue: number;
+  overdueSince: number | null;
+  collectors: boolean;
+}
+
+export type DefectType = 'damp' | 'wiring' | 'exit';
+
+export interface TaxDue {
+  amount: number;
+  declareBy: number;
+  payBy: number;
+  filed: boolean;
+  /** пени и штрафы сверх налога */
+  penalty: number;
+  /** штраф за неподачу уже начислен столько раз */
+  undeclaredFines: number;
+}
+
 /** Всё состояние партии. Только данные – сериализуется в JSON как есть. */
 export interface GameState {
-  version: 2;
+  version: 3;
   seed: number;
   rngState: number;
   /** текущий (ещё не посчитанный) день, 1..360 */
@@ -186,24 +243,56 @@ export interface GameState {
   overtimeAccrued: number;
   inventory: Record<string, Batch[]>;
   cleanliness: number;
-  /** скрытый дефект помещения: сырость */
+  /** скрытый дефект помещения */
   defect: boolean;
+  defectType: DefectType;
   defectKnown: boolean;
   inspections: Inspection[];
   pending: Pending[];
   /** кофейня опечатана по этот день включительно */
   suspendedUntilDay: number;
   suspensionDaysTotal: number;
+  /** закрыта по своей воле или из-за аварии */
+  closedUntilDay: number;
+  machineDownUntilDay: number;
   negativeDays: number;
+  accounting: AccountingId;
   tax: {
     quarterRevenue: number;
     quarterDeductible: number;
-    due: { amount: number; payDay: number } | null;
+    due: TaxDue | null;
     paidTotal: number;
+    lateCount: number;
+    /** недоплата из-за ошибок в декларациях – найдёт только проверка */
+    hiddenError: number;
+    rateDelta: number;
   };
-  /** списания текущего дня по статьям, уходят в DayRecord */
+  /** доля выручки мимо кассы, 0..0,3 */
+  offbookShare: number;
+  offbookTotal: number;
+  /** «не списывать до последнего» */
+  lateWriteOff: boolean;
+  grade: string;
+  onTimeStreak: number;
+  loans: Loan[];
+  flyersUntilDay: number;
+  social: boolean;
+  promo: boolean;
+  serviceContract: boolean;
+  rentFactor: number;
+  flowMods: { factor: number; untilDay: number }[];
+  costMods: { factor: number; untilDay: number }[];
+  /** корпоративный заказ: осталось недель и деньги в пути */
+  contractWeeks: number;
+  receivables: { day: number; amount: number }[];
+  eventLog: Record<string, number>;
+  lastEventDay: number;
+  reviews: Review[];
+  /** ежедневная доля игрока для реакции конкурентов */
+  shareLog: number[];
+  /** ledger текущего дня по статьям, уходит в DayRecord */
   ledger: Partial<Record<ExpenseCategory, number>>;
-  stats: { fines: number; bribes: number; contests: number; inspections: number };
+  stats: { fines: number; bribes: number; contests: number; inspections: number; offbookCaught: number };
   lastSaid: Record<string, number>;
   feed: FeedEntry[];
   prices: Record<string, number>;
@@ -220,42 +309,52 @@ export function defaultOptions(cfg: GameConfig = defaultConfig): NewGameOptions 
  * Скрытые дефекты помещений. Зависят только от сида, а не от хода партии,
  * поэтому мастер старта и ядро видят одно и то же.
  */
-export function rollDefects(seed: number, cfg: GameConfig = defaultConfig): Record<LocationId, boolean> {
+export function rollDefects(seed: number, cfg: GameConfig = defaultConfig): Record<LocationId, DefectType | null> {
   const holder = { rngState: seedToState(seed ^ 0x5eed1234) };
-  const out = {} as Record<LocationId, boolean>;
+  const out = {} as Record<LocationId, DefectType | null>;
+  const types: DefectType[] = ['damp', 'wiring', 'exit'];
   for (const id of Object.keys(cfg.balance.locations) as LocationId[]) {
-    out[id] = nextRandom(holder) < cfg.balance.locations[id].defectChance;
+    const has = nextRandom(holder) < cfg.balance.locations[id].defectChance;
+    const type = types[Math.floor(nextRandom(holder) * types.length)];
+    out[id] = has ? type : null;
   }
   return out;
 }
 
-export function createInitialState(seed: number, options?: NewGameOptions, cfg: GameConfig = defaultConfig): GameState {
+/** Строки расходов на открытие (без первой закупки). */
+export function setupLines(opts: NewGameOptions, cfg: GameConfig = defaultConfig): SetupLine[] {
   const b = cfg.balance;
-  const opts = options ?? defaultOptions(cfg);
-  const difficulty = b.difficulties[opts.difficulty];
-  const location = b.locations[opts.location];
   const c = b.costs;
-
-  const equipment: EquipmentId[] = [opts.machine, 'register'];
-  for (const id of opts.extras) if (id in b.equipment && !equipment.includes(id)) equipment.push(id);
-
-  const hadDefect = rollDefects(seed, cfg)[opts.location];
-  const prices: Record<string, number> = {};
-  for (const item of cfg.items) prices[item.id] = item.defaultPrice;
-
-  const setup: SetupLine[] = [
+  const location = b.locations[opts.location];
+  const lines: SetupLine[] = [
     { id: 'registration', name: `Регистрация ${b.forms[opts.form].name}`, amount: c.registration[opts.form] },
     { id: 'deposit', name: `Депозит за ${c.depositMonths} мес. аренды`, amount: location.rent * c.depositMonths },
   ];
-  if (opts.premisesInspection) setup.push({ id: 'premisesInspection', name: 'Осмотр помещения', amount: c.premisesInspection });
-  setup.push({ id: 'repair', name: opts.repair === 'full' ? 'Полный ремонт' : 'Косметический ремонт', amount: c.repair[opts.repair] });
-  for (const id of equipment) setup.push({ id, name: b.equipment[id].name, amount: b.equipment[id].price });
+  if (opts.premisesInspection) lines.push({ id: 'premisesInspection', name: 'Осмотр помещения', amount: c.premisesInspection });
+  lines.push({ id: 'repair', name: opts.repair === 'full' ? 'Полный ремонт' : 'Косметический ремонт', amount: c.repair[opts.repair] });
+  const equipment: EquipmentId[] = [opts.machine, 'register'];
+  for (const id of opts.extras) if (id in b.equipment && !equipment.includes(id)) equipment.push(id);
+  for (const id of equipment) lines.push({ id, name: b.equipment[id].name, amount: b.equipment[id].price });
+  return lines;
+}
+
+export function createInitialState(seed: number, options?: NewGameOptions, cfg: GameConfig = defaultConfig): GameState {
+  const b = cfg.balance;
+  const opts = { ...defaultOptions(cfg), ...options };
+  const difficulty = b.difficulties[opts.difficulty];
+  const location = b.locations[opts.location];
+
+  const setup = setupLines(opts, cfg);
+  const equipment = setup.filter((l) => l.id in b.equipment).map((l) => l.id as EquipmentId);
+  const defect = rollDefects(seed, cfg)[opts.location];
+  const prices: Record<string, number> = {};
+  for (const item of cfg.items) prices[item.id] = item.defaultPrice;
 
   let awareness = b.awareness.start;
   for (const id of equipment) awareness += b.equipment[id].awareness;
 
   const state: GameState = {
-    version: 2,
+    version: 3,
     seed,
     rngState: seedToState(seed),
     day: 1,
@@ -284,26 +383,51 @@ export function createInitialState(seed: number, options?: NewGameOptions, cfg: 
       medBookReadyDay: null,
       fatigue: 0,
       hiredDay: 1,
+      official: opts.startStaffOfficial,
+      loyaltyBonus: 0,
     })),
     candidates: [],
     nextId: b.staff.start.length + 1,
     overtimeAccrued: 0,
     inventory: {},
     cleanliness: b.compliance.cleanStart,
-    defect: hadDefect && opts.repair !== 'full',
-    defectKnown: hadDefect && opts.premisesInspection,
+    defect: defect !== null && opts.repair !== 'full',
+    defectType: defect ?? 'damp',
+    defectKnown: defect !== null && opts.premisesInspection,
     inspections: [],
     pending: [],
     suspendedUntilDay: 0,
     suspensionDaysTotal: 0,
+    closedUntilDay: 0,
+    machineDownUntilDay: 0,
     negativeDays: 0,
-    tax: { quarterRevenue: 0, quarterDeductible: 0, due: null, paidTotal: 0 },
+    accounting: opts.form === 'ooo' && opts.accounting === 'self' ? 'outsource' : opts.accounting,
+    tax: { quarterRevenue: 0, quarterDeductible: 0, due: null, paidTotal: 0, lateCount: 0, hiddenError: 0, rateDelta: 0 },
+    offbookShare: 0,
+    offbookTotal: 0,
+    lateWriteOff: false,
+    grade: b.loans.startGrade,
+    onTimeStreak: 0,
+    loans: [],
+    flyersUntilDay: 0,
+    social: false,
+    promo: false,
+    serviceContract: false,
+    rentFactor: 1,
+    flowMods: [],
+    costMods: [],
+    contractWeeks: 0,
+    receivables: [],
+    eventLog: {},
+    lastEventDay: 0,
+    reviews: [],
+    shareLog: [],
     ledger: {},
-    stats: { fines: 0, bribes: 0, contests: 0, inspections: 0 },
+    stats: { fines: 0, bribes: 0, contests: 0, inspections: 0, offbookCaught: 0 },
     lastSaid: {},
     feed: [],
     prices,
-    competitors: b.competitors.map((x) => ({ ...x })),
+    competitors: b.competitors.map((x) => ({ ...x, lowShareDays: 0, closedUntilDay: 0 })),
     history: [],
     commandLog: [],
   };
@@ -320,25 +444,33 @@ export function createInitialState(seed: number, options?: NewGameOptions, cfg: 
   const total = setup.reduce((a, l) => a + l.amount, 0);
   state.cash = round2(difficulty.startCapital - total);
 
-  // плановая проверка СЭС видна в календаре с первого дня
-  const ses = cfg.inspections.ses;
-  state.inspections.push({
-    id: state.nextId++,
-    agency: 'ses',
-    inspectorId: pickInspectorId(state, cfg),
-    reason: 'planned',
-    noticeDay: ses.plannedDay - ses.noticeDays,
-    visitDay: ses.plannedDay,
-    fineMultiplier: 1,
-    consultant: false,
-  });
+  if (opts.startLoan > 0) {
+    state.loans.push(makeLoan(state, cfg, 'start', opts.startLoan));
+    state.cash = round2(state.cash + opts.startLoan);
+  }
+
+  // плановые проверки видны в календаре с первого дня
+  for (const agency of AGENCIES) {
+    const a = cfg.inspections[agency];
+    state.inspections.push({
+      id: state.nextId++,
+      agency,
+      inspectorId: pickInspectorId(state, cfg, agency),
+      reason: 'planned',
+      cause: 'План по графику',
+      noticeDay: a.plannedDay - a.noticeDays,
+      visitDay: a.plannedDay,
+      fineMultiplier: 1,
+      consultant: false,
+    });
+  }
   refreshCandidates(state, cfg);
   return state;
 }
 
-export function pickInspectorId(state: GameState, cfg: GameConfig): string {
+export function pickInspectorId(state: GameState, cfg: GameConfig, agency: AgencyId): string {
   const allowFormalists = cfg.balance.difficulties[state.options.difficulty].formalists;
-  const pool = cfg.inspectors.filter((i) => i.agency === 'ses' && (allowFormalists || i.trait !== 'formalist'));
+  const pool = cfg.inspectors.filter((i) => i.agency === agency && (allowFormalists || i.trait !== 'formalist'));
   return pool[Math.floor(nextRandom(state) * pool.length)].id;
 }
 

@@ -1,11 +1,14 @@
 import { dayOfMonth, monthOf, seasonOf } from './calendar';
+import { competitorsTurn } from './competitors';
 import { clamp, defaultConfig, round2, totalDays, type GameConfig } from './config';
+import { rollEvents, writeReview } from './events';
 import { say, usd } from './feed';
 import { dailyFixed, payMonthEnd, processTaxes } from './finance';
 import { decayCleanliness, morningInspections, rollUnplanned } from './inspections';
 import { consume, receiveDeliveries, stockQty, writeOffExpired } from './inventory';
+import { processLoans, rescueAvailable } from './loans';
 import { nextRandom } from './rng';
-import { baristas, demandView, periodCapacity } from './shop';
+import { closedReason, demandView, periodCapacity } from './shop';
 import { finishMedBooks, updateStaffDay } from './staff';
 import { refreshCandidates, type DayRecord, type GameState } from './state';
 
@@ -47,17 +50,28 @@ export function simulateDay(state: GameState, cfg: GameConfig = defaultConfig): 
   const day = state.day;
   const month = monthOf(day, b);
   const season = seasonOf(month, b);
+  const random = () => nextRandom(state);
 
   // ---------- утро ----------
-  if (day > 1 && day % 7 === 1) refreshCandidates(state, cfg);
+  if (day > 1 && day % 7 === 1) {
+    refreshCandidates(state, cfg);
+    if (state.contractWeeks > 0) {
+      state.contractWeeks--;
+      state.receivables.push({ day: day + b.time.daysPerMonth, amount: 200 * 2.2 });
+    }
+  }
   finishMedBooks(state, cfg);
   if (day > 1) receiveDeliveries(state, cfg);
+  for (const r of state.receivables.filter((x) => x.day <= day)) state.cash = round2(state.cash + r.amount);
+  state.receivables = state.receivables.filter((x) => x.day > day);
+  state.flowMods = state.flowMods.filter((m) => m.untilDay >= day);
+  state.costMods = state.costMods.filter((m) => m.untilDay >= day);
 
-  const suspended = day <= state.suspendedUntilDay;
-  const open = !suspended && baristas(state).length > 0;
-  if (suspended) state.suspensionDaysTotal++;
-  else if (!open) say(state, cfg, 'noBarista', 'bad', {}, 3);
-  if (!suspended && state.suspendedUntilDay === day - 1 && day > 1) say(state, cfg, 'reopened', 'ok');
+  const reason = closedReason(state, cfg, day);
+  const open = reason === null;
+  if (day <= state.suspendedUntilDay) state.suspensionDaysTotal++;
+  else if (reason === 'нет бариста') say(state, cfg, 'noBarista', 'bad', {}, 3);
+  if (day > state.suspendedUntilDay && state.suspendedUntilDay === day - 1 && day > 1) say(state, cfg, 'reopened', 'ok');
 
   // ---------- спрос ----------
   const view = demandView(state, cfg, day);
@@ -126,12 +140,15 @@ export function simulateDay(state: GameState, cfg: GameConfig = defaultConfig): 
 
   let revenue = 0;
   for (const i of cfg.items) revenue += sold[i.id] * state.prices[i.id];
-  revenue = round2(revenue);
+  revenue = round2(revenue * (state.promo ? b.marketing.promo.checkFactor : 1));
   let cogs = 0;
   for (const m of cfg.materials) if (used[m.id] > 0) cogs += consume(state, m.id, used[m.id]);
   cogs = round2(cogs);
   state.cash = round2(state.cash + revenue);
-  state.tax.quarterRevenue = round2(state.tax.quarterRevenue + revenue);
+  // мимо кассы: налоговая база меньше, но сумма копится для проверки
+  const offbook = round2(revenue * state.offbookShare);
+  state.offbookTotal = round2(state.offbookTotal + offbook);
+  state.tax.quarterRevenue = round2(state.tax.quarterRevenue + revenue - offbook);
 
   if (lostQueue > 0) say(state, cfg, 'queue', 'warn', { n: lostQueue }, 5);
   if (lostStock > 0) {
@@ -161,16 +178,21 @@ export function simulateDay(state: GameState, cfg: GameConfig = defaultConfig): 
     const stars = state.reputation.toFixed(1).replace('.', ',');
     if (Math.floor(state.reputation * 2) > Math.floor(before * 2)) say(state, cfg, 'reputationUp', 'ok', { stars });
     else if (Math.floor(state.reputation * 2) < Math.floor(before * 2)) {
-      const reason = lostQueue + lostStock > 0 ? 'Клиенты уходят без кофе' : state.cleanliness < 50 ? 'Грязно' : 'Цена выше, чем готовы платить';
-      say(state, cfg, 'reputationDown', 'bad', { stars, reason });
+      const why = lostQueue + lostStock > 0 ? 'Клиенты уходят без кофе' : state.cleanliness < 50 ? 'Грязно' : 'Цена выше, чем готовы платить';
+      say(state, cfg, 'reputationDown', 'bad', { stars, reason: why });
     }
   }
+  if (day % b.eventRules.reviewEveryDays === 0 && served > 0) writeReview(state, cfg);
 
-  state.awareness = Math.min(b.awareness.max, round2(state.awareness + b.awareness.dailyGrowth));
+  const m = b.marketing;
+  const growth = b.awareness.dailyGrowth + (day <= state.flyersUntilDay ? m.flyers.awarenessPerDay : 0) + (state.social ? m.social.awarenessPerDay : 0);
+  state.awareness = Math.min(b.awareness.max, round2(state.awareness + growth));
 
   const monthEnd = dayOfMonth(day, b) === b.time.daysPerMonth;
   if (monthEnd) payMonthEnd(state, cfg);
-  processTaxes(state, cfg);
+  processTaxes(state, cfg, random);
+  processLoans(state, cfg);
+  competitorsTurn(state, cfg, view.share, view.rivalShares);
 
   // ---------- конец игры ----------
   if (state.cash < 0) {
@@ -207,7 +229,9 @@ export function simulateDay(state: GameState, cfg: GameConfig = defaultConfig): 
   state.ledger = {};
   state.day = day + 1;
 
-  if (state.negativeDays > b.gameOver.negativeDaysLimit) finish(state, 'bankrupt');
+  const bankrupt =
+    state.negativeDays > b.gameOver.negativeHardLimit || (state.negativeDays > b.gameOver.negativeDaysLimit && !rescueAvailable(state, cfg));
+  if (bankrupt) finish(state, 'bankrupt');
   else if (state.suspensionDaysTotal > b.gameOver.suspensionDaysLimit) finish(state, 'closed');
   else if (state.day > totalDays(b)) finish(state, 'year');
 
@@ -216,6 +240,7 @@ export function simulateDay(state: GameState, cfg: GameConfig = defaultConfig): 
     if (monthEnd) state.pending.push({ kind: 'monthReport', month });
     rollUnplanned(state, cfg);
     morningInspections(state, cfg);
+    rollEvents(state, cfg);
   }
   return record;
 }

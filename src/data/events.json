@@ -1,0 +1,589 @@
+[
+  {
+    "id": "machine_break",
+    "title": "Сломалась кофемашина",
+    "text": "Утром машина выдала пар, треск и лужу. Без неё кофейня стоит.",
+    "when": {
+      "weeklyChance": 0.02,
+      "hasMachine": true,
+      "cooldown": 30
+    },
+    "options": [
+      {
+        "label": "Срочный ремонт, 1 день",
+        "cost": 600,
+        "fx": {
+          "machineDownDays": 1
+        }
+      },
+      {
+        "label": "Обычный ремонт, 4 дня простоя",
+        "cost": 250,
+        "fx": {
+          "machineDownDays": 4
+        }
+      },
+      {
+        "label": "Ремонт + подменная машина",
+        "note": "$50 в день, 4 дня",
+        "cost": 450,
+        "fx": {}
+      }
+    ]
+  },
+  {
+    "id": "milk_fail",
+    "title": "Не привезли молоко",
+    "text": "Поставщик не приехал. Молочные напитки – больше половины заказов.",
+    "when": {
+      "trigger": "milk"
+    },
+    "options": [
+      {
+        "label": "Купить в магазине",
+        "note": "цена ×1,8",
+        "fx": {
+          "retailMilk": 1
+        }
+      },
+      {
+        "label": "Убрать молочное до поставки",
+        "note": "потеряете заказы",
+        "fx": {}
+      }
+    ]
+  },
+  {
+    "id": "barista_sick",
+    "title": "{name} заболел",
+    "text": "Температура 38,5. Говорит, что смену закрыть некому, но выйти не может.",
+    "when": {
+      "fatigueAbove": 70,
+      "dailyChance": 0.08,
+      "cooldown": 14,
+      "target": true
+    },
+    "options": [
+      {
+        "label": "Закрыть кофейню на день",
+        "fx": {
+          "closeDays": 1,
+          "fatigueTarget": -40
+        }
+      },
+      {
+        "label": "Вывести других сверхурочно",
+        "cost": 60,
+        "fx": {
+          "fatigueAll": 20,
+          "fatigueTarget": -40
+        }
+      }
+    ]
+  },
+  {
+    "id": "poach",
+    "title": "«Зёрна» переманивают: {name}",
+    "text": "Предложили на 20% больше. Человек пришёл поговорить честно.",
+    "when": {
+      "loyaltyBelow": 40,
+      "dailyChance": 0.05,
+      "cooldown": 21,
+      "target": true,
+      "role": "barista"
+    },
+    "options": [
+      {
+        "label": "Поднять зарплату на 20%",
+        "fx": {
+          "raiseTarget": 0.2
+        }
+      },
+      {
+        "label": "Отпустить",
+        "fx": {
+          "leaveTarget": 1
+        }
+      }
+    ]
+  },
+  {
+    "id": "hair",
+    "title": "«Нашла волос в капучино»",
+    "text": "Гостья показывает чашку всей очереди и снимает на телефон.",
+    "when": {
+      "cleanBelow": 50,
+      "dailyChance": 0.06,
+      "cooldown": 21
+    },
+    "options": [
+      {
+        "label": "Извиниться и заменить напиток",
+        "fx": {
+          "reputation": -0.05
+        }
+      },
+      {
+        "label": "Компенсация",
+        "cost": 20,
+        "fx": {}
+      },
+      {
+        "label": "Сделать вид, что не слышали",
+        "chance": 0.5,
+        "okText": "Обошлось: ушла молча.",
+        "failText": "Написала жалобу в СЭС.",
+        "fx": {},
+        "fxFail": {
+          "reputation": -0.1,
+          "inspect": "ses"
+        }
+      }
+    ]
+  },
+  {
+    "id": "blogger",
+    "title": "Блогер хочет кофе за обзор",
+    "text": "30 тысяч подписчиков, большая часть, кажется, настоящие.",
+    "when": {
+      "weeklyChance": 0.05,
+      "once": true
+    },
+    "options": [
+      {
+        "label": "Угостить",
+        "cost": 15,
+        "chance": 0.6,
+        "okText": "Обзор вышел, очередь выросла.",
+        "failText": "Выложил только фото своего кота.",
+        "fx": {
+          "awareness": 0.15
+        },
+        "fxFail": {}
+      },
+      {
+        "label": "Отказать",
+        "fx": {}
+      }
+    ]
+  },
+  {
+    "id": "corporate",
+    "title": "Заказ от офиса напротив",
+    "text": "200 кофе в неделю по $2,2. Оплата через 30 дней по договору.",
+    "when": {
+      "form": "ooo",
+      "minMonth": 2,
+      "weeklyChance": 0.1,
+      "once": true
+    },
+    "options": [
+      {
+        "label": "Подписать на 8 недель",
+        "fx": {
+          "contractWeeks": 8
+        }
+      },
+      {
+        "label": "Отказать",
+        "fx": {}
+      }
+    ]
+  },
+  {
+    "id": "rent_rise",
+    "title": "Арендодатель поднимает аренду",
+    "text": "+15% со следующего месяца. «Рынок вырос, сами понимаете».",
+    "when": {
+      "minMonth": 6,
+      "dailyChance": 0.5,
+      "once": true
+    },
+    "options": [
+      {
+        "label": "Согласиться",
+        "fx": {
+          "rentFactor": 1.15
+        }
+      },
+      {
+        "label": "Торговаться",
+        "chance": "grade",
+        "okText": "Договорились на +5%.",
+        "failText": "Не уступил.",
+        "fx": {
+          "rentFactor": 1.05
+        },
+        "fxFail": {
+          "rentFactor": 1.15
+        }
+      }
+    ]
+  },
+  {
+    "id": "road_works",
+    "title": "Ремонт дороги перед входом",
+    "text": "Перекопали тротуар на три недели. Людей стало заметно меньше.",
+    "when": {
+      "weeklyChance": 0.03,
+      "once": true,
+      "minMonth": 2
+    },
+    "options": [
+      {
+        "label": "Поставить указатель",
+        "note": "поток −20%",
+        "cost": 150,
+        "fx": {
+          "flow": {
+            "factor": 0.8,
+            "days": 21
+          }
+        }
+      },
+      {
+        "label": "Перетерпеть",
+        "note": "поток −40%",
+        "fx": {
+          "flow": {
+            "factor": 0.6,
+            "days": 21
+          }
+        }
+      }
+    ]
+  },
+  {
+    "id": "officialize",
+    "title": "«Оформите меня официально»",
+    "text": "{name} хочет стаж и больничные. Говорит спокойно, но смотрит прямо.",
+    "when": {
+      "envelopeStaff": true,
+      "weeklyChance": 0.08,
+      "cooldown": 45,
+      "target": true
+    },
+    "options": [
+      {
+        "label": "Оформить",
+        "fx": {
+          "officializeTarget": 1
+        }
+      },
+      {
+        "label": "Отказать",
+        "note": "лояльность −20",
+        "fx": {
+          "loyaltyTarget": -20
+        }
+      }
+    ]
+  },
+  {
+    "id": "fixer",
+    "title": "«Решальщик» предлагает помочь",
+    "text": "Знакомый знакомого «решит вопрос с проверкой» за $500. Деньги вперёд.",
+    "when": {
+      "announced": true,
+      "dailyChance": 0.05,
+      "cooldown": 60
+    },
+    "options": [
+      {
+        "label": "Заплатить",
+        "cost": 500,
+        "chance": 0.5,
+        "okText": "Проверку перенесли, как и обещал.",
+        "failText": "Телефон больше не отвечает.",
+        "fx": {
+          "skipInspection": 1
+        },
+        "fxFail": {}
+      },
+      {
+        "label": "Отказаться",
+        "fx": {}
+      }
+    ]
+  },
+  {
+    "id": "poisoning",
+    "title": "Отравление клиента",
+    "text": "Гость попал в больницу после круассана. Родные уже звонят.",
+    "when": {
+      "lateWriteOff": true,
+      "dailyChance": 0.04,
+      "cooldown": 30
+    },
+    "options": [
+      {
+        "label": "Компенсация и честный разговор",
+        "note": "придёт СЭС",
+        "cost": 300,
+        "fx": {
+          "inspect": "ses"
+        }
+      },
+      {
+        "label": "Всё отрицать",
+        "chance": 0.5,
+        "okText": "Доказать ничего не смогли.",
+        "failText": "Суд: компенсация $1 500 и статья в городском паблике.",
+        "fx": {},
+        "fxFail": {
+          "cash": -1500,
+          "reputation": -0.3
+        }
+      }
+    ]
+  },
+  {
+    "id": "shortage",
+    "title": "Недостача в кассе",
+    "text": "Не сходится на $180. Смену закрывал(а) {name}.",
+    "when": {
+      "loyaltyBelow": 35,
+      "weeklyChance": 0.1,
+      "cooldown": 45,
+      "target": true
+    },
+    "options": [
+      {
+        "label": "Уволить",
+        "fx": {
+          "cash": -180,
+          "leaveTarget": 1
+        }
+      },
+      {
+        "label": "Поставить камеры",
+        "cost": 700,
+        "fx": {
+          "cash": -180
+        }
+      },
+      {
+        "label": "Простить",
+        "fx": {
+          "cash": -180,
+          "loyaltyTarget": 10
+        }
+      }
+    ]
+  },
+  {
+    "id": "law_change",
+    "title": "Изменился закон",
+    "text": "С нового квартала ставка упрощёнки растёт на 1 процентный пункт.",
+    "when": {
+      "minMonth": 7,
+      "dailyChance": 0.5,
+      "once": true
+    },
+    "options": [
+      {
+        "label": "Принять к сведению",
+        "fx": {
+          "taxRateDelta": 0.01
+        }
+      }
+    ]
+  },
+  {
+    "id": "fake_reviews",
+    "title": "Фейковые отзывы",
+    "text": "За ночь пришло 40 единиц с похожим текстом. Подозрительно похожих на рекламу конкурента.",
+    "when": {
+      "shareAbove": "dirty",
+      "weeklyChance": 0.15,
+      "cooldown": 45
+    },
+    "options": [
+      {
+        "label": "Ответить с доказательствами",
+        "cost": 50,
+        "fx": {
+          "reputation": -0.05
+        }
+      },
+      {
+        "label": "Жалоба площадке",
+        "chance": 0.5,
+        "okText": "Отзывы удалили.",
+        "failText": "Жалобу отклонили.",
+        "fx": {},
+        "fxFail": {
+          "reputation": -0.2
+        }
+      },
+      {
+        "label": "Проигнорировать",
+        "fx": {
+          "reputation": -0.2
+        }
+      }
+    ]
+  },
+  {
+    "id": "bad_review",
+    "title": "Плохой отзыв",
+    "text": "«{review}» Три звезды из пяти, и это пока.",
+    "when": {
+      "repBelow": 3.2,
+      "weeklyChance": 0.2,
+      "cooldown": 30
+    },
+    "options": [
+      {
+        "label": "Извиниться",
+        "fx": {
+          "reputation": 0.03
+        }
+      },
+      {
+        "label": "Компенсация",
+        "cost": 20,
+        "fx": {
+          "reputation": 0.06
+        }
+      },
+      {
+        "label": "Проигнорировать",
+        "fx": {
+          "reputation": -0.03
+        }
+      },
+      {
+        "label": "Поспорить",
+        "chance": 0.6,
+        "okText": "Гостья извинилась.",
+        "failText": "Спор стал вирусным.",
+        "fx": {
+          "reputation": 0.05
+        },
+        "fxFail": {
+          "reputation": -0.2
+        }
+      }
+    ]
+  },
+  {
+    "id": "leak",
+    "title": "Соседи сверху затопили",
+    "text": "Капает на витрину. Управляющая компания обещает «на неделе».",
+    "when": {
+      "weeklyChance": 0.025,
+      "cooldown": 120
+    },
+    "options": [
+      {
+        "label": "Вызвать мастера за свой счёт",
+        "cost": 300,
+        "fx": {
+          "cleanliness": -5
+        }
+      },
+      {
+        "label": "Закрыться на день и подождать",
+        "fx": {
+          "closeDays": 1,
+          "cleanliness": -20
+        }
+      }
+    ]
+  },
+  {
+    "id": "students",
+    "title": "Рядом открылись курсы",
+    "text": "Можно договориться: скидка студентам и листовки в коридорах.",
+    "when": {
+      "weeklyChance": 0.03,
+      "once": true
+    },
+    "options": [
+      {
+        "label": "Договориться",
+        "cost": 100,
+        "fx": {
+          "flow": {
+            "factor": 1.15,
+            "days": 30
+          }
+        }
+      },
+      {
+        "label": "Не надо",
+        "fx": {}
+      }
+    ]
+  },
+  {
+    "id": "bean_price",
+    "title": "Подорожали продукты",
+    "text": "Поставщик поднял цены на всё на 15% – «курс, логистика, сами знаете».",
+    "when": {
+      "minMonth": 3,
+      "weeklyChance": 0.03,
+      "cooldown": 120
+    },
+    "options": [
+      {
+        "label": "Принять",
+        "fx": {
+          "materialCost": {
+            "factor": 1.15,
+            "days": 45
+          }
+        }
+      }
+    ]
+  },
+  {
+    "id": "outage",
+    "title": "Отключили электричество",
+    "text": "Авария на подстанции, обещают дать к вечеру.",
+    "when": {
+      "weeklyChance": 0.03,
+      "cooldown": 60
+    },
+    "options": [
+      {
+        "label": "Арендовать генератор",
+        "cost": 120,
+        "fx": {}
+      },
+      {
+        "label": "Закрыться на день",
+        "fx": {
+          "closeDays": 1
+        }
+      }
+    ]
+  },
+  {
+    "id": "tips",
+    "title": "Премия к празднику?",
+    "text": "Команда отработала без срывов. Ждут хотя бы символической благодарности.",
+    "when": {
+      "minMonth": 3,
+      "weeklyChance": 0.04,
+      "cooldown": 90
+    },
+    "options": [
+      {
+        "label": "Премия всем, $50 на человека",
+        "costPerHead": 50,
+        "fx": {
+          "loyaltyAll": 15,
+          "fatigueAll": -15
+        }
+      },
+      {
+        "label": "Спасибо словами",
+        "fx": {
+          "loyaltyAll": -5
+        }
+      }
+    ]
+  }
+]

@@ -19,15 +19,18 @@ function untilVisit(s: GameState): Visit {
   throw new Error('визита не было');
 }
 
-const noFridge = (seed: number, difficulty: 'training' | 'realism' | 'survival' = 'realism') =>
-  createInitialState(seed, { ...defaultOptions(), extras: ['furniture'], difficulty });
+const noFridge = (seed: number, difficulty: 'training' | 'realism' | 'survival' = 'realism') => {
+  const s = createInitialState(seed, { ...defaultOptions(), extras: ['furniture'], difficulty });
+  s.defect = false;
+  return s;
+};
 
 describe('шкалы СЭС', () => {
   it('чистота падает на 3 в день, с уборщицей – втрое медленнее', () => {
     const s = createInitialState(1);
     simulateDay(s);
     expect(s.cleanliness).toBe(77);
-    s.employees.push({ id: 99, name: 'Тест', role: 'cleaner', salary: 400, experience: 1, hasMedBook: true, medBookReadyDay: null, fatigue: 0, hiredDay: 1 });
+    s.employees.push({ id: 99, name: 'Тест', role: 'cleaner', salary: 400, experience: 1, hasMedBook: true, medBookReadyDay: null, fatigue: 0, hiredDay: 1, official: true, loyaltyBonus: 0 });
     simulateDay(s);
     expect(s.cleanliness).toBe(76);
   });
@@ -55,6 +58,7 @@ describe('шкалы СЭС', () => {
   it('скрытая сырость не видна игроку, пока её не нашли', () => {
     const s = createInitialState(1);
     s.defect = true;
+    s.defectType = 'damp';
     s.defectKnown = false;
     expect(itemScore(s, cfg, 'damp')).toBe(0);
     expect(itemScore(s, cfg, 'damp', true)).toBe(100);
@@ -106,7 +110,7 @@ describe('плановая проверка СЭС', () => {
     expect(applyCommand(s, { type: 'ResolveInspection', choice: 'accept' })).toBe(true);
     expect(s.cash).toBeCloseTo(cash - visit.totalFine, 2);
     expect(s.suspendedUntilDay).toBe(77);
-    expect(s.inspections[0]).toMatchObject({ reason: 'repeat', visitDay: 105, fineMultiplier: 2 });
+    expect(s.inspections.find((i) => i.reason === 'repeat')).toMatchObject({ agency: 'ses', visitDay: 105, fineMultiplier: 2 });
     const closed = [simulateDay(s), simulateDay(s), simulateDay(s)];
     expect(closed.every((r) => !r.open && r.revenue === 0)).toBe(true);
     expect(simulateDay(s).open).toBe(true);
@@ -121,6 +125,7 @@ describe('плановая проверка СЭС', () => {
     let clean: GameState | null = null;
     for (let seed = 1; seed < 60 && !clean; seed++) {
       const s = createInitialState(seed, { ...defaultOptions(), repair: 'full' });
+      applyCommand(s, { type: 'DebugAddMoney', amount: 5000 });
       while (s.day < 74) {
         while (s.pending.length) applyCommand(s, { type: 'Acknowledge' });
         simulateDay(s);
@@ -132,7 +137,7 @@ describe('плановая проверка СЭС', () => {
     expect(clean).not.toBeNull();
     expect(applyCommand(clean!, { type: 'ResolveInspection', choice: 'accept' })).toBe(false);
     expect(applyCommand(clean!, { type: 'Acknowledge' })).toBe(true);
-    expect(clean!.inspections).toHaveLength(0);
+    expect(clean!.inspections.filter((i) => i.agency === 'ses')).toHaveLength(0);
   });
 
   it('оспорить: юрист $300, бывает и победа, и поражение; без нарушений по бумагам шанс выше', () => {
@@ -164,7 +169,7 @@ describe('плановая проверка СЭС', () => {
         outcomes.add('criminal');
       } else {
         expect(s.cash).toBeCloseTo(cash - visit.totalFine / 2, 2);
-        expect(s.inspections).toHaveLength(0);
+        expect(s.inspections.filter((i) => i.reason === 'repeat')).toHaveLength(0);
         outcomes.add('ok');
       }
       expect(s.stats.bribes).toBe(1);
@@ -175,7 +180,9 @@ describe('плановая проверка СЭС', () => {
   it('консультант: +15 к чистоте и находит скрытую сырость; её можно устранить', () => {
     const s = createInitialState(1);
     s.defect = true;
+    s.defectType = 'damp';
     s.defectKnown = false;
+    applyCommand(s, { type: 'DebugAddMoney', amount: 5000 });
     expect(applyCommand(s, { type: 'HireConsultant' })).toBe(false); // проверка ещё не объявлена
     while (s.day < 65) {
       while (s.pending.length) applyCommand(s, { type: 'Acknowledge' });
@@ -198,6 +205,8 @@ describe('внеплановые проверки и закрытие', () => {
     applyCommand(s, { type: 'DebugAddMoney', amount: 500000 });
     applyCommand(s, { type: 'SetSupplier', supplier: 'cheap' });
     s.employees.forEach((e) => (e.hasMedBook = false));
+    s.defect = true;
+    s.defectType = 'damp';
     const visit = untilVisit(s);
     expect(visit.reason).toBe('unplanned');
     expect(s.feed.some((f) => f.key === 'inspectionScheduled')).toBe(false);
@@ -207,6 +216,7 @@ describe('внеплановые проверки и закрытие', () => {
     const s = createInitialState(1);
     applyCommand(s, { type: 'DebugAddMoney', amount: 500000 });
     s.inspections = [];
+    s.defect = false;
     s.suspendedUntilDay = 40;
     for (let i = 0; i < 31 && !s.finished; i++) {
       while (s.pending.length) applyCommand(s, { type: 'Acknowledge' });

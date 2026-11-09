@@ -6,14 +6,249 @@
     "noticeDays": 10,
     "reinspectAfterDays": 30,
     "reinspectFineMultiplier": 2,
-    "contest": { "baseChance": 0.3, "cleanDocsChance": 0.6 },
-    "bribe": { "costShare": 0.5, "caughtChance": 0.2 },
+    "contest": {
+      "baseChance": 0.3,
+      "cleanDocsChance": 0.6
+    },
+    "bribe": {
+      "costShare": 0.5,
+      "caughtChance": 0.2
+    },
     "items": [
-      { "id": "cleanliness", "name": "Чистота зала и стойки", "type": "live", "fine": 300, "suspensionDays": 0, "docs": false, "hint": "Падает каждый день. Уборщица замедляет втрое, срочная уборка возвращает 100." },
-      { "id": "fridge", "name": "Холодильник для молока", "type": "static", "fine": 500, "suspensionDays": 3, "docs": false, "hint": "Нет холодильника – приостановка на 3 дня и молоко живёт 2 дня вместо 7." },
-      { "id": "medbooks", "name": "Медкнижки у персонала", "type": "static", "fine": 200, "suspensionDays": 0, "docs": true, "hint": "Штраф за каждого сотрудника без медкнижки." },
-      { "id": "supplierDocs", "name": "Документы на продукты", "type": "live", "fine": 300, "suspensionDays": 0, "docs": true, "hint": "У дешёвого поставщика документы есть не всегда." },
-      { "id": "damp", "name": "Сырость и плесень", "type": "static", "fine": 400, "suspensionDays": 0, "docs": false, "hint": "Скрытый дефект помещения. Находит осмотр до аренды или консультант." }
+      {
+        "id": "cleanliness",
+        "name": "Чистота зала и стойки",
+        "type": "live",
+        "fine": 300,
+        "suspensionDays": 0,
+        "docs": false,
+        "hint": "Падает каждый день. Уборщица замедляет втрое, срочная уборка возвращает 100."
+      },
+      {
+        "id": "fridge",
+        "name": "Холодильник для молока",
+        "type": "static",
+        "fine": 500,
+        "suspensionDays": 3,
+        "docs": false,
+        "hint": "Нет холодильника – приостановка на 3 дня и молоко живёт 2 дня вместо 7."
+      },
+      {
+        "id": "medbooks",
+        "name": "Медкнижки у персонала",
+        "type": "static",
+        "fine": 200,
+        "suspensionDays": 0,
+        "docs": true,
+        "hint": "Штраф за каждого сотрудника без медкнижки."
+      },
+      {
+        "id": "expired",
+        "name": "Просрочка на складе",
+        "type": "static",
+        "fine": 500,
+        "suspensionDays": 7,
+        "docs": false,
+        "hint": "Политика «не списывать до последнего» оставляет просрочку на полках."
+      },
+      {
+        "id": "supplierDocs",
+        "name": "Документы на продукты",
+        "type": "live",
+        "fine": 300,
+        "suspensionDays": 0,
+        "docs": true,
+        "hint": "У дешёвого поставщика документы есть не всегда."
+      },
+      {
+        "id": "damp",
+        "name": "Сырость и плесень",
+        "type": "static",
+        "fine": 400,
+        "suspensionDays": 0,
+        "docs": false,
+        "hint": "Скрытый дефект помещения. Находит осмотр до аренды или консультант."
+      }
+    ]
+  },
+  "fire": {
+    "name": "Пожарная",
+    "fullName": "Пожарный надзор",
+    "plannedDay": 165,
+    "noticeDays": 10,
+    "reinspectAfterDays": 30,
+    "reinspectFineMultiplier": 2,
+    "contest": {
+      "baseChance": 0.3,
+      "cleanDocsChance": 0.6
+    },
+    "bribe": {
+      "costShare": 0.5,
+      "caughtChance": 0.2
+    },
+    "items": [
+      {
+        "id": "extinguishers",
+        "name": "Огнетушители",
+        "type": "static",
+        "fine": 200,
+        "suspensionDays": 0,
+        "docs": false,
+        "hint": "Купить во вкладке «Техника»."
+      },
+      {
+        "id": "alarm",
+        "name": "Пожарная сигнализация",
+        "type": "static",
+        "fine": 600,
+        "suspensionDays": 0,
+        "docs": false,
+        "hint": "Купить во вкладке «Техника»."
+      },
+      {
+        "id": "evacPlan",
+        "name": "План эвакуации",
+        "type": "static",
+        "fine": 200,
+        "suspensionDays": 0,
+        "docs": true,
+        "hint": "Купить во вкладке «Техника»."
+      },
+      {
+        "id": "fireCondition",
+        "name": "Общее состояние",
+        "type": "live",
+        "fine": 300,
+        "suspensionDays": 0,
+        "docs": false,
+        "hint": "Огнетушители +15, сигнализация +25, полный ремонт +20."
+      },
+      {
+        "id": "exit",
+        "name": "Запасной выход",
+        "type": "static",
+        "fine": 1000,
+        "suspensionDays": 7,
+        "docs": false,
+        "hint": "Скрытый дефект помещения."
+      },
+      {
+        "id": "wiring",
+        "name": "Проводка",
+        "type": "static",
+        "fine": 1000,
+        "suspensionDays": 7,
+        "docs": false,
+        "hint": "Скрытый дефект помещения."
+      }
+    ]
+  },
+  "labour": {
+    "name": "Трудовая",
+    "fullName": "Инспекция труда",
+    "plannedDay": 315,
+    "noticeDays": 10,
+    "reinspectAfterDays": 30,
+    "reinspectFineMultiplier": 2,
+    "contest": {
+      "baseChance": 0.3,
+      "cleanDocsChance": 0.6
+    },
+    "bribe": {
+      "costShare": 0.5,
+      "caughtChance": 0.2
+    },
+    "items": [
+      {
+        "id": "officialStaff",
+        "name": "Все сотрудники оформлены",
+        "type": "static",
+        "fine": 300,
+        "suspensionDays": 0,
+        "docs": true,
+        "hint": "−15 к шкале за каждого «в конверте». Штраф за человека, доначисление взносов и сигнал в налоговую."
+      },
+      {
+        "id": "overtime",
+        "name": "Переработки",
+        "type": "live",
+        "fine": 300,
+        "suspensionDays": 0,
+        "docs": false,
+        "hint": "Норма – 42 часа в неделю на человека."
+      },
+      {
+        "id": "minWage",
+        "name": "Зарплата не ниже минимальной",
+        "type": "static",
+        "fine": 300,
+        "suspensionDays": 0,
+        "docs": true,
+        "hint": "Минимум – $500 в месяц."
+      }
+    ]
+  },
+  "tax": {
+    "name": "Налоговая",
+    "fullName": "Налоговая служба",
+    "plannedDay": 255,
+    "noticeDays": 10,
+    "reinspectAfterDays": 30,
+    "reinspectFineMultiplier": 2,
+    "contest": {
+      "baseChance": 0.3,
+      "cleanDocsChance": 0.6
+    },
+    "bribe": {
+      "costShare": 0.5,
+      "caughtChance": 0.2
+    },
+    "items": [
+      {
+        "id": "register",
+        "name": "Онлайн-касса",
+        "type": "static",
+        "fine": 500,
+        "suspensionDays": 0,
+        "docs": false,
+        "hint": "Обязательна."
+      },
+      {
+        "id": "deadlines",
+        "name": "Сроки деклараций",
+        "type": "live",
+        "fine": 200,
+        "suspensionDays": 0,
+        "docs": true,
+        "hint": "Каждая просрочка снижает шкалу."
+      },
+      {
+        "id": "returns",
+        "name": "Верные суммы в декларациях",
+        "type": "static",
+        "fine": 0,
+        "suspensionDays": 0,
+        "docs": true,
+        "hint": "Ошибку не видно сразу. Доначисление + 20%."
+      },
+      {
+        "id": "offbook",
+        "name": "Продажи мимо кассы",
+        "type": "live",
+        "fine": 1000,
+        "suspensionDays": 0,
+        "docs": false,
+        "hint": "Контрольная закупка: $1 000 + доначисление за весь период."
+      },
+      {
+        "id": "expenseDocs",
+        "name": "Документы на расходы",
+        "type": "live",
+        "fine": 300,
+        "suspensionDays": 0,
+        "docs": true,
+        "hint": "Важно на режиме 15%, особенно с дешёвым поставщиком."
+      }
     ]
   }
 }

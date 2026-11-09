@@ -1,8 +1,9 @@
 import { round2, type GameConfig, type Material } from './config';
 import { say } from './feed';
-import { spend } from './finance';
+import { fireTriggered } from './events';
+import { accountBlocked, spend } from './finance';
 import { nextRandom } from './rng';
-import { demandView, periodCapacity } from './shop';
+import { costFactor, demandView, periodCapacity } from './shop';
 import type { GameState } from './state';
 
 export function stockQty(state: GameState, materialId: string): number {
@@ -38,6 +39,7 @@ export function orderQuantity(state: GameState, m: Material, cfg: GameConfig): n
 /** Утренние поставки по автозаказу. */
 export function receiveDeliveries(state: GameState, cfg: GameConfig): void {
   const supplier = cfg.balance.suppliers[state.supplier];
+  if (accountBlocked(state, cfg)) return;
   const failed: string[] = [];
   for (const m of cfg.materials) {
     if ((state.day - 1) % m.deliveryEveryDays !== 0) continue;
@@ -48,11 +50,12 @@ export function receiveDeliveries(state: GameState, cfg: GameConfig): void {
     }
     const qty = orderQuantity(state, m, cfg);
     if (qty <= 0) continue;
-    const unitCost = round2(m.cost * supplier.priceFactor);
+    const unitCost = round2(m.cost * supplier.priceFactor * costFactor(state));
     state.inventory[m.id].push({ qty, expiresDay: state.day + shelfLife(state, m, cfg) - 1, unitCost });
     spend(state, 'purchases', qty * unitCost, supplier.documents);
   }
   if (failed.length) say(state, cfg, 'deliveryFailed', 'warn', { materials: failed.join(', ') });
+  if (failed.includes('Молоко')) fireTriggered(state, cfg, 'milk');
 }
 
 /** Снимает сырьё со склада по FIFO. Возвращает его стоимость. */
@@ -78,7 +81,7 @@ export function writeOffExpired(state: GameState, cfg: GameConfig): { cost: numb
   for (const m of cfg.materials) {
     const keep = [];
     for (const b of state.inventory[m.id]) {
-      if (b.expiresDay <= state.day) {
+      if (b.expiresDay + (state.lateWriteOff ? cfg.balance.grey.lateWriteOffDays : 0) <= state.day) {
         cost += b.qty * b.unitCost;
         if (b.qty >= 1 && !names.includes(m.name)) names.push(m.name);
       } else keep.push(b);

@@ -1,12 +1,12 @@
-import { clamp, round2, type ChecklistItem, type GameConfig, type Inspector } from './config';
+import { AGENCIES, clamp, round2, totalDays, type AgencyId, type ChecklistItem, type GameConfig, type Inspector } from './config';
 import { say, usd } from './feed';
 import { spend } from './finance';
 import { nextRandom } from './rng';
-import { hasCleaner } from './shop';
+import { hasCleaner, hoursPerWeek } from './shop';
 import { pickInspectorId, type GameState, type Inspection, type Pending, type VisitResult } from './state';
 
-export function checklist(cfg: GameConfig): ChecklistItem[] {
-  return cfg.inspections.ses.items as ChecklistItem[];
+export function checklist(cfg: GameConfig, agency: AgencyId = 'ses'): ChecklistItem[] {
+  return cfg.inspections[agency].items as ChecklistItem[];
 }
 
 export function inspectorById(cfg: GameConfig, id: string): Inspector {
@@ -17,36 +17,84 @@ function withoutMedBook(state: GameState): number {
   return state.employees.filter((e) => !e.hasMedBook).length;
 }
 
+function envelopeCount(state: GameState): number {
+  return state.employees.filter((e) => !e.official).length;
+}
+
+function belowMinWage(state: GameState, cfg: GameConfig): number {
+  return state.employees.filter((e) => e.salary < cfg.balance.staff.minWage).length;
+}
+
+function defectScore(state: GameState, type: GameState['defectType'], known: boolean): number {
+  return state.defect && state.defectType === type && (!known || state.defectKnown) ? 0 : 100;
+}
+
 /**
- * Шкала пункта 0–100. known = true – то, что видит игрок (скрытый дефект не виден, пока не найден).
+ * Шкала пункта 0–100. known = true – то, что видит игрок (скрытое не показывается, пока не найдено).
  */
 export function itemScore(state: GameState, cfg: GameConfig, itemId: string, known = false): number {
+  const c = cfg.balance.compliance;
+  const has = (id: GameState['equipment'][number]) => state.equipment.includes(id);
   switch (itemId) {
     case 'cleanliness':
       return state.cleanliness;
     case 'fridge':
-      return state.equipment.includes('fridge') ? 100 : 0;
+      return has('fridge') ? 100 : 0;
     case 'medbooks':
       return state.employees.length ? Math.round((1 - withoutMedBook(state) / state.employees.length) * 100) : 100;
+    case 'expired':
+      return Object.values(state.inventory).some((l) => l.some((x) => x.expiresDay < state.day && x.qty >= 1)) ? 0 : 100;
     case 'supplierDocs':
       return Math.round(cfg.balance.suppliers[state.supplier].documents * 100);
     case 'damp':
-      return state.defect && (!known || state.defectKnown) ? 0 : 100;
+    case 'wiring':
+    case 'exit':
+      return defectScore(state, itemId, known);
+    case 'extinguishers':
+      return has('extinguishers') ? 100 : 0;
+    case 'alarm':
+      return has('alarm') ? 100 : 0;
+    case 'evacPlan':
+      return has('evacPlan') ? 100 : 0;
+    case 'fireCondition':
+      return clamp(c.fireBase + (has('extinguishers') ? c.fireExtinguishers : 0) + (has('alarm') ? c.fireAlarm : 0) + (state.options.repair === 'full' ? c.fireFullRepair : 0), 0, 100);
+    case 'officialStaff':
+      return clamp(100 - envelopeCount(state) * c.labourPerEnvelope, 0, 100);
+    case 'overtime': {
+      const norm = cfg.balance.staff.weeklyNormHours;
+      return clamp(Math.round(100 - (Math.max(0, hoursPerWeek(state, cfg) - norm) / norm) * 200), 0, 100);
+    }
+    case 'minWage':
+      return belowMinWage(state, cfg) ? 0 : 100;
+    case 'register':
+      return has('register') ? 100 : 0;
+    case 'deadlines':
+      return clamp(100 - state.tax.lateCount * cfg.balance.taxes.lateScorePenalty, 0, 100);
+    case 'returns':
+      return known ? 100 : state.tax.hiddenError > 0 ? 0 : 100;
+    case 'offbook':
+      return clamp(Math.round(100 - (state.offbookShare / cfg.balance.grey.offbookMax) * 90), 0, 100);
+    case 'expenseDocs':
+      return state.options.taxRegime === 'profit15' ? Math.round(cfg.balance.suppliers[state.supplier].documents * 100) : 100;
     default:
       return 100;
   }
 }
 
-/** Общая шкала СЭС – среднее по пунктам чек-листа. */
-export function sesScore(state: GameState, cfg: GameConfig, known = false): number {
-  const items = checklist(cfg);
+/** Общая шкала ведомства – среднее по пунктам чек-листа. */
+export function agencyScore(state: GameState, cfg: GameConfig, agency: AgencyId, known = false): number {
+  const items = checklist(cfg, agency);
   return Math.round(items.reduce((a, i) => a + itemScore(state, cfg, i.id, known), 0) / items.length);
+}
+
+export function sesScore(state: GameState, cfg: GameConfig, known = false): number {
+  return agencyScore(state, cfg, 'ses', known);
 }
 
 /** Вечер: чистота падает каждый день. */
 export function decayCleanliness(state: GameState, cfg: GameConfig): void {
   const c = cfg.balance.compliance;
-  let decay = c.decayPerDay + (state.defect ? c.dampExtraDecay : 0);
+  let decay = c.decayPerDay + (state.defect && state.defectType === 'damp' ? c.dampExtraDecay : 0);
   if (hasCleaner(state)) decay /= c.cleanerDivider;
   state.cleanliness = clamp(round2(state.cleanliness - decay), 0, 100);
 }
@@ -54,16 +102,19 @@ export function decayCleanliness(state: GameState, cfg: GameConfig): void {
 export function scheduleInspection(
   state: GameState,
   cfg: GameConfig,
+  agency: AgencyId,
   reason: Inspection['reason'],
   visitDay: number,
   noticeDays: number,
   fineMultiplier = 1,
+  cause = '',
 ): Inspection {
   const insp: Inspection = {
     id: state.nextId++,
-    agency: 'ses',
-    inspectorId: pickInspectorId(state, cfg),
+    agency,
+    inspectorId: pickInspectorId(state, cfg, agency),
     reason,
+    cause,
     noticeDay: visitDay - noticeDays,
     visitDay,
     fineMultiplier,
@@ -73,16 +124,24 @@ export function scheduleInspection(
   return insp;
 }
 
+/** Внеплановая по конкретной причине: жалоба, сигнал, донос. */
+export function triggerUnplanned(state: GameState, cfg: GameConfig, agency: AgencyId, cause: string): boolean {
+  if (state.inspections.some((i) => i.agency === agency && i.reason === 'unplanned')) return false;
+  const d = cfg.balance.difficulties[state.options.difficulty];
+  scheduleInspection(state, cfg, agency, 'unplanned', state.day + Math.max(1, d.unplannedNoticeDays), d.unplannedNoticeDays, 1, cause);
+  if (d.unplannedNoticeDays > 0) say(state, cfg, 'inspectionScheduled', 'warn', { agency: cfg.inspections[agency].name, reason: cause });
+  return true;
+}
+
 /** Вечер: фоновый шанс внеплановой проверки, если шкала ниже порога. */
 export function rollUnplanned(state: GameState, cfg: GameConfig): void {
   const c = cfg.balance.compliance;
   const d = cfg.balance.difficulties[state.options.difficulty];
-  if (state.inspections.some((i) => i.reason !== 'planned')) return;
-  if (sesScore(state, cfg) >= c.unplannedThreshold) return;
-  if (nextRandom(state) >= c.unplannedDailyChance * d.unplannedMultiplier) return;
-  // state.day уже указывает на завтра
-  scheduleInspection(state, cfg, 'unplanned', state.day + d.unplannedNoticeDays, d.unplannedNoticeDays);
-  if (d.unplannedNoticeDays > 0) say(state, cfg, 'inspectionScheduled', 'warn');
+  for (const agency of AGENCIES) {
+    if (agencyScore(state, cfg, agency) >= c.unplannedThreshold) continue;
+    if (nextRandom(state) >= c.unplannedDailyChance * d.unplannedMultiplier) continue;
+    triggerUnplanned(state, cfg, agency, 'Низкий уровень соответствия');
+  }
 }
 
 /** Шанс нарушения по живому пункту: p = (100 − шкала) / 100 · k. */
@@ -92,27 +151,46 @@ export function violationChance(score: number, inspector: Inspector, item: Check
   return clamp(((100 - score) / 100) * k, 0, 1);
 }
 
+/** Доначисление по пункту налоговой/трудовой сверх базового штрафа. */
+function extraFine(state: GameState, cfg: GameConfig, itemId: string): number {
+  const b = cfg.balance;
+  if (itemId === 'returns') return round2(state.tax.hiddenError * (1 + b.taxes.errorFine));
+  if (itemId === 'offbook') {
+    const regime = b.taxes.regimes[state.options.taxRegime];
+    return round2(state.offbookTotal * regime.rate);
+  }
+  if (itemId === 'officialStaff') {
+    const months = b.staff.backPayMonthsCap;
+    return round2(
+      state.employees.filter((e) => !e.official).reduce((a, e) => a + e.salary * b.staff.contributions * Math.min(months, (state.day - e.hiredDay) / b.time.daysPerMonth), 0),
+    );
+  }
+  return 0;
+}
+
 /** Визит: инспектор проходит чек-лист. Результат ждёт решения игрока. */
 export function rollVisit(state: GameState, cfg: GameConfig, insp: Inspection): Pending {
   const inspector = inspectorById(cfg, insp.inspectorId);
   const results: VisitResult[] = [];
   let totalFine = 0;
   let suspensionDays = 0;
-  for (const item of checklist(cfg)) {
+  for (const item of checklist(cfg, insp.agency)) {
     const score = itemScore(state, cfg, item.id);
     let violated: boolean;
     let count = 1;
     if (item.type === 'live') violated = nextRandom(state) < violationChance(score, inspector, item);
     else violated = score < 100;
     if (item.id === 'medbooks') count = Math.max(1, withoutMedBook(state));
-    const fine = violated ? round2(item.fine * count * insp.fineMultiplier) : 0;
+    if (item.id === 'officialStaff') count = Math.max(1, envelopeCount(state));
+    if (item.id === 'minWage') count = Math.max(1, belowMinWage(state, cfg));
+    const fine = violated ? round2((item.fine * count + extraFine(state, cfg, item.id)) * insp.fineMultiplier) : 0;
     const susp = violated ? item.suspensionDays : 0;
     results.push({ itemId: item.id, violated, fine, suspensionDays: susp, count: violated ? count : 0 });
     totalFine += fine;
     suspensionDays = Math.max(suspensionDays, susp);
   }
   state.stats.inspections++;
-  return { kind: 'inspectionVisit', inspectorId: insp.inspectorId, reason: insp.reason, results, totalFine: round2(totalFine), suspensionDays };
+  return { kind: 'inspectionVisit', agency: insp.agency, inspectorId: insp.inspectorId, reason: insp.reason, results, totalFine: round2(totalFine), suspensionDays };
 }
 
 /** Утро следующего дня: уведомления и визиты. state.day уже указывает на новый день. */
@@ -131,23 +209,40 @@ export function morningInspections(state: GameState, cfg: GameConfig): void {
 }
 
 /** Шанс отменить акт через юриста: выше, если по бумагам нарушений нет. */
-export function contestChance(cfg: GameConfig, results: VisitResult[]): number {
-  const c = cfg.inspections.ses.contest;
-  const docsViolated = results.some((r) => r.violated && checklist(cfg).find((i) => i.id === r.itemId)?.docs);
+export function contestChance(cfg: GameConfig, results: VisitResult[], agency: AgencyId = 'ses'): number {
+  const c = cfg.inspections[agency].contest;
+  const docsViolated = results.some((r) => r.violated && checklist(cfg, agency).find((i) => i.id === r.itemId)?.docs);
   return docsViolated ? c.baseChance : c.cleanDocsChance;
 }
 
+function endCriminal(state: GameState): void {
+  state.finished = true;
+  state.outcome = 'criminal';
+  state.pending = [];
+}
+
 function applyAct(state: GameState, cfg: GameConfig, visit: Extract<Pending, { kind: 'inspectionVisit' }>): void {
-  const ses = cfg.inspections.ses;
+  const a = cfg.inspections[visit.agency];
   spend(state, 'fines', visit.totalFine);
   state.stats.fines = round2(state.stats.fines + visit.totalFine);
   if (visit.suspensionDays > 0) {
     state.suspendedUntilDay = Math.max(state.suspendedUntilDay, state.day + visit.suspensionDays - 1);
     say(state, cfg, 'suspended', 'bad', { n: visit.suspensionDays });
   }
-  const visitDay = state.day + ses.reinspectAfterDays;
-  if (visitDay <= cfg.balance.time.daysPerMonth * cfg.balance.time.monthsPerYear) {
-    scheduleInspection(state, cfg, 'repeat', visitDay, ses.noticeDays, ses.reinspectFineMultiplier);
+  const violated = (id: string) => visit.results.some((r) => r.itemId === id && r.violated);
+  if (violated('returns')) state.tax.hiddenError = 0;
+  if (violated('officialStaff')) {
+    triggerUnplanned(state, cfg, 'tax', 'Сигнал из инспекции труда');
+    say(state, cfg, 'signal', 'warn', { agency: cfg.inspections.tax.name });
+  }
+  if (violated('offbook')) {
+    state.stats.offbookCaught++;
+    if (state.offbookTotal > cfg.balance.grey.criminalOffbook) return endCriminal(state);
+    state.offbookTotal = 0;
+  }
+  const visitDay = state.day + a.reinspectAfterDays;
+  if (visitDay <= totalDays(cfg.balance)) {
+    scheduleInspection(state, cfg, visit.agency, 'repeat', visitDay, a.noticeDays, a.reinspectFineMultiplier, 'Проверка исполнения предписания');
   }
 }
 
@@ -155,7 +250,7 @@ function applyAct(state: GameState, cfg: GameConfig, visit: Extract<Pending, { k
 export function resolveVisit(state: GameState, cfg: GameConfig, choice: 'accept' | 'contest' | 'bribe'): boolean {
   const visit = state.pending[0];
   if (!visit || visit.kind !== 'inspectionVisit' || visit.totalFine <= 0) return false;
-  const ses = cfg.inspections.ses;
+  const a = cfg.inspections[visit.agency];
   state.pending.shift();
   if (choice === 'accept') {
     applyAct(state, cfg, visit);
@@ -163,7 +258,7 @@ export function resolveVisit(state: GameState, cfg: GameConfig, choice: 'accept'
   } else if (choice === 'contest') {
     state.stats.contests++;
     spend(state, 'services', cfg.balance.costs.lawyer);
-    if (nextRandom(state) < contestChance(cfg, visit.results)) {
+    if (nextRandom(state) < contestChance(cfg, visit.results, visit.agency)) {
       say(state, cfg, 'contestWon', 'ok');
     } else {
       applyAct(state, cfg, visit);
@@ -171,12 +266,10 @@ export function resolveVisit(state: GameState, cfg: GameConfig, choice: 'accept'
     }
   } else {
     state.stats.bribes++;
-    if (nextRandom(state) < ses.bribe.caughtChance) {
-      state.finished = true;
-      state.outcome = 'criminal';
-      state.pending = [];
+    if (nextRandom(state) < a.bribe.caughtChance) {
+      endCriminal(state);
     } else {
-      const cost = round2(visit.totalFine * ses.bribe.costShare);
+      const cost = round2(visit.totalFine * a.bribe.costShare);
       spend(state, 'fines', cost);
       say(state, cfg, 'bribeOk', 'warn', { amount: usd(cost) });
     }

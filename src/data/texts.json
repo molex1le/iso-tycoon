@@ -1,30 +1,186 @@
 {
-  "deliveryFailed": { "title": "Поставщик сорвал поставку", "text": "{materials}: привезут в следующий раз" },
-  "outOfStock": { "title": "Закончилось: {materials}", "text": "Потеряно заказов: {n}" },
-  "wasted": { "title": "Списана просрочка на {amount}", "text": "{materials}" },
-  "queue": { "title": "Очередь: ушли {n} клиентов", "text": "Не хватает людей за стойкой или мощности кофемашины" },
-  "quit": { "title": "{name} уволился", "text": "Усталость на пределе – слишком много переработок" },
-  "noBarista": { "title": "Кофейня закрыта", "text": "Некому работать – наймите бариста" },
-  "suspended": { "title": "Кофейня опечатана СЭС", "text": "Откроется через {n} дн. Аренда и зарплаты идут" },
-  "reopened": { "title": "Кофейня снова открыта", "text": "Приостановка закончилась" },
-  "monthPaid": { "title": "Платежи за месяц: {amount}", "text": "Аренда, зарплаты со взносами, коммуналка" },
-  "taxDue": { "title": "Налог за квартал: {amount}", "text": "Спишется на {n}-й день" },
-  "taxPaid": { "title": "Уплачен налог: {amount}", "text": "" },
-  "negative": { "title": "Баланс ниже нуля", "text": "До банкротства {n} дн." },
-  "medBookReady": { "title": "Медкнижка готова", "text": "{name}" },
-  "hired": { "title": "Принят на работу: {name}", "text": "{role}, {amount} в месяц" },
-  "fired": { "title": "{name} уволен", "text": "Компенсация {amount}" },
-  "bought": { "title": "Куплено: {name}", "text": "" },
-  "cleaned": { "title": "Срочная уборка", "text": "Чистота 100" },
-  "defectFixed": { "title": "Сырость устранена", "text": "" },
-  "consultantOk": { "title": "Консультант: замечаний нет", "text": "Чистота +15" },
-  "consultantFound": { "title": "Консультант нашёл проблемы", "text": "{items}" },
-  "inspectionScheduled": { "title": "Внеплановая проверка СЭС", "text": "Причина – низкий уровень соответствия" },
-  "inspectionClean": { "title": "СЭС: нарушений нет", "text": "" },
-  "inspectionAccepted": { "title": "Акт принят: штраф {amount}", "text": "Повторная проверка через 30 дней, штрафы ×2" },
-  "contestWon": { "title": "Юрист отбил акт", "text": "Штраф и приостановка отменены" },
-  "contestLost": { "title": "Суд оставил акт в силе", "text": "Штраф {amount} плюс юрист" },
-  "bribeOk": { "title": "Договорились", "text": "Акт исчез. Это стоило {amount}" },
-  "reputationUp": { "title": "Репутация выросла до {stars}", "text": "" },
-  "reputationDown": { "title": "Репутация упала до {stars}", "text": "{reason}" }
+  "deliveryFailed": {
+    "title": "Поставщик сорвал поставку",
+    "text": "{materials}: привезут в следующий раз"
+  },
+  "outOfStock": {
+    "title": "Закончилось: {materials}",
+    "text": "Потеряно заказов: {n}"
+  },
+  "wasted": {
+    "title": "Списана просрочка на {amount}",
+    "text": "{materials}"
+  },
+  "queue": {
+    "title": "Очередь: ушли {n} клиентов",
+    "text": "Не хватает людей за стойкой или мощности кофемашины"
+  },
+  "quit": {
+    "title": "{name} уволился",
+    "text": "Усталость на пределе – слишком много переработок"
+  },
+  "noBarista": {
+    "title": "Кофейня закрыта",
+    "text": "Некому работать – наймите бариста"
+  },
+  "suspended": {
+    "title": "Кофейня опечатана",
+    "text": "Откроется через {n} дн. Аренда и зарплаты идут"
+  },
+  "reopened": {
+    "title": "Кофейня снова открыта",
+    "text": "Приостановка закончилась"
+  },
+  "monthPaid": {
+    "title": "Платежи за месяц: {amount}",
+    "text": "Аренда, зарплаты со взносами, коммуналка"
+  },
+  "taxDue": {
+    "title": "Налог за квартал: {amount}",
+    "text": "Декларация до дня {declare}, оплата до дня {pay}"
+  },
+  "taxPaid": {
+    "title": "Уплачен налог: {amount}",
+    "text": ""
+  },
+  "negative": {
+    "title": "Баланс ниже нуля",
+    "text": "До банкротства {n} дн."
+  },
+  "medBookReady": {
+    "title": "Медкнижка готова",
+    "text": "{name}"
+  },
+  "hired": {
+    "title": "Принят на работу: {name}",
+    "text": "{role}, {amount} в месяц"
+  },
+  "fired": {
+    "title": "{name} уволен",
+    "text": "Компенсация {amount}"
+  },
+  "bought": {
+    "title": "Куплено: {name}",
+    "text": ""
+  },
+  "cleaned": {
+    "title": "Срочная уборка",
+    "text": "Чистота 100"
+  },
+  "defectFixed": {
+    "title": "Дефект устранён",
+    "text": "{name}"
+  },
+  "consultantOk": {
+    "title": "Консультант: замечаний нет",
+    "text": "Чистота +15"
+  },
+  "consultantFound": {
+    "title": "Консультант нашёл проблемы",
+    "text": "{items}"
+  },
+  "inspectionScheduled": {
+    "title": "Внеплановая проверка: {agency}",
+    "text": "{reason}"
+  },
+  "inspectionClean": {
+    "title": "{agency}: нарушений нет",
+    "text": ""
+  },
+  "inspectionAccepted": {
+    "title": "Акт принят: штраф {amount}",
+    "text": "Повторная проверка через 30 дней, штрафы ×2"
+  },
+  "contestWon": {
+    "title": "Юрист отбил акт",
+    "text": "Штраф и приостановка отменены"
+  },
+  "contestLost": {
+    "title": "Суд оставил акт в силе",
+    "text": "Штраф {amount} плюс юрист"
+  },
+  "bribeOk": {
+    "title": "Договорились",
+    "text": "Акт исчез. Это стоило {amount}"
+  },
+  "reputationUp": {
+    "title": "Репутация выросла до {stars}",
+    "text": ""
+  },
+  "reputationDown": {
+    "title": "Репутация упала до {stars}",
+    "text": "{reason}"
+  },
+  "taxFiled": {
+    "title": "Декларация подана",
+    "text": ""
+  },
+  "taxLate": {
+    "title": "Налог просрочен",
+    "text": "Пеня 0,1% в день"
+  },
+  "taxUndeclared": {
+    "title": "Декларация не подана: штраф {amount}",
+    "text": ""
+  },
+  "accountBlocked": {
+    "title": "Счёт заблокирован налоговой",
+    "text": "Поставщикам платить нельзя, пока не погасите долг"
+  },
+  "loanTaken": {
+    "title": "Кредит «{name}»: {amount}",
+    "text": "Платёж {payment} в месяц"
+  },
+  "loanPaid": {
+    "title": "Платёж по кредиту: {amount}",
+    "text": ""
+  },
+  "loanLate": {
+    "title": "Просрочка по кредиту",
+    "text": "Штраф {amount}, кредитная история {grade}"
+  },
+  "loanOffer": {
+    "title": "Банк предлагает реструктуризацию",
+    "text": "Вкладка «Банк»"
+  },
+  "collectors": {
+    "title": "Звонят коллекторы",
+    "text": "Репутация и нервы персонала страдают"
+  },
+  "seized": {
+    "title": "Банк забрал кофемашину",
+    "text": "Кофейня стоит, пока не купите новую"
+  },
+  "loanClosed": {
+    "title": "Кредит «{name}» закрыт",
+    "text": ""
+  },
+  "rivalMove": {
+    "title": "«{name}»: {move}",
+    "text": ""
+  },
+  "rivalClosed": {
+    "title": "«{name}» закрылись",
+    "text": "Их клиенты теперь ищут другую кофейню"
+  },
+  "rivalOpened": {
+    "title": "На месте «{name}» снова открылись",
+    "text": ""
+  },
+  "complaint": {
+    "title": "{name} написал жалобу",
+    "text": "Ждите проверку"
+  },
+  "flyers": {
+    "title": "Листовки раздают неделю",
+    "text": ""
+  },
+  "eventResult": {
+    "title": "{title}",
+    "text": "{text}"
+  },
+  "signal": {
+    "title": "Сигнал из другого ведомства",
+    "text": "{agency} проявляет интерес"
+  }
 }

@@ -148,7 +148,7 @@
     "metro": {
       "name": "У метро",
       "rent": 2400,
-      "footTraffic": 950,
+      "footTraffic": 900,
       "seats": 6,
       "defectChance": 0.2
     },
@@ -208,6 +208,30 @@
       "quality": 0,
       "awareness": 0.1,
       "text": "Узнаваемость +10% сразу"
+    },
+    "extinguishers": {
+      "name": "Огнетушители (2 шт.)",
+      "price": 120,
+      "ordersPerHour": 0,
+      "quality": 0,
+      "awareness": 0,
+      "text": "Требование пожарной инспекции"
+    },
+    "alarm": {
+      "name": "Пожарная сигнализация",
+      "price": 1500,
+      "ordersPerHour": 0,
+      "quality": 0,
+      "awareness": 0,
+      "text": "Пожарная шкала +25"
+    },
+    "evacPlan": {
+      "name": "План эвакуации",
+      "price": 100,
+      "ordersPerHour": 0,
+      "quality": 0,
+      "awareness": 0,
+      "text": "Требование пожарной инспекции"
     }
   },
   "competitors": [
@@ -238,7 +262,10 @@
     "extras": [
       "furniture",
       "fridge"
-    ]
+    ],
+    "startLoan": 0,
+    "accounting": "self",
+    "startStaffOfficial": true
   },
   "costs": {
     "utilities": 300,
@@ -253,12 +280,19 @@
       "cosmetic": 2000,
       "full": 6000
     },
-    "defectFix": 1500,
+    "defectFix": {
+      "damp": 1500,
+      "wiring": 2000,
+      "exit": 2500
+    },
     "cleaning": 200,
     "consultant": 400,
     "lawyer": 300,
     "medBook": 80,
-    "medBookDays": 5
+    "medBookDays": 5,
+    "severanceSalaries": 1,
+    "accountantOutsource": 300,
+    "accountantStaff": 900
   },
   "forms": {
     "ip": {
@@ -303,7 +337,18 @@
         "salary": 850,
         "experience": 3
       }
-    ]
+    ],
+    "minWage": 500,
+    "marketSalary": 800,
+    "loyaltyBase": 50,
+    "loyaltyOfficial": 10,
+    "loyaltyEnvelope": -10,
+    "loyaltyPerSalary": 0.1,
+    "loyaltyPerFatigue": 0.2,
+    "poachBelow": 40,
+    "complaintNoSeverance": 0.4,
+    "complaintEnvelope": 0.7,
+    "backPayMonthsCap": 6
   },
   "suppliers": {
     "reliable": {
@@ -346,7 +391,21 @@
         "minRate": 0.01,
         "onProfit": true
       }
-    }
+    },
+    "declareAfterDays": 20,
+    "latePenaltyPerDay": 0.001,
+    "undeclaredFine": 200,
+    "undeclaredPerMonth": 0.05,
+    "blockAfterDays": 30,
+    "errorChance": {
+      "self": 0.1,
+      "outsource": 0.05,
+      "staff": 0.01
+    },
+    "errorShareMin": 0.1,
+    "errorShareMax": 0.3,
+    "errorFine": 0.2,
+    "lateScorePenalty": 34
   },
   "compliance": {
     "cleanStart": 80,
@@ -355,18 +414,144 @@
     "dampExtraDecay": 1,
     "consultantBoost": 15,
     "unplannedThreshold": 40,
-    "unplannedDailyChance": 0.01
+    "unplannedDailyChance": 0.01,
+    "fireBase": 40,
+    "fireExtinguishers": 15,
+    "fireAlarm": 25,
+    "fireFullRepair": 20,
+    "signalNoticeDays": 1,
+    "labourPerEnvelope": 15
   },
   "gameOver": {
     "negativeDaysLimit": 14,
-    "suspensionDaysLimit": 30
+    "suspensionDaysLimit": 30,
+    "negativeHardLimit": 30
   },
   "score": {
     "equipmentResidual": 0.5,
     "medals": {
-      "gold": 0,
-      "silver": -5000,
-      "bronze": -10000
+      "gold": -10000,
+      "silver": -14000,
+      "bronze": -18000
     }
+  },
+  "grey": {
+    "offbookMax": 0.3,
+    "offbookStep": 0.05,
+    "offbookFine": 1000,
+    "criminalOffbook": 5000,
+    "lateWriteOffDays": 2
+  },
+  "marketing": {
+    "flyers": {
+      "name": "Листовки",
+      "price": 200,
+      "days": 7,
+      "awarenessPerDay": 0.02,
+      "text": "$200 за неделю: узнаваемость +2% в день"
+    },
+    "social": {
+      "name": "Соцсети",
+      "monthly": 500,
+      "awarenessPerDay": 0.01,
+      "attractiveness": 1.05,
+      "text": "$500 в месяц: узнаваемость +1% в день, привлекательность +5%"
+    },
+    "promo": {
+      "name": "Второй кофе за полцены",
+      "checkFactor": 0.85,
+      "clientsFactor": 1.25,
+      "text": "Чек −15%, клиентов +25%, конкуренты заметят"
+    },
+    "serviceContract": {
+      "name": "Сервисный договор",
+      "monthly": 100,
+      "breakFactor": 0.3,
+      "text": "$100 в месяц: поломки реже на 70%, ремонт за 1 день"
+    }
+  },
+  "loans": {
+    "products": {
+      "start": {
+        "name": "Старт",
+        "limit": 20000,
+        "oooLimit": 30000,
+        "rate": 18,
+        "months": 24,
+        "text": "С первого дня. Залог – оборудование"
+      },
+      "working": {
+        "name": "Оборотный",
+        "rate": 22,
+        "months": 12,
+        "minDays": 90,
+        "text": "До средней месячной выручки, после 3 месяцев работы и без просрочек"
+      },
+      "micro": {
+        "name": "Микрозайм",
+        "limit": 5000,
+        "rate": 60,
+        "months": 6,
+        "text": "Мгновенно, без проверок. При просрочке – сразу коллекторы"
+      }
+    },
+    "grades": [
+      "A",
+      "B",
+      "C",
+      "D",
+      "E"
+    ],
+    "gradeRate": {
+      "A": -4,
+      "B": -2,
+      "C": 0,
+      "D": 3,
+      "E": 0
+    },
+    "startGrade": "C",
+    "difficultyRate": {
+      "training": -4,
+      "realism": 0,
+      "survival": 4
+    },
+    "lateFine": 50,
+    "penaltyPerDay": 0.001,
+    "restructureAfterDays": 30,
+    "restructureMonths": 12,
+    "restructureRate": 3,
+    "collectorsAfterDays": 60,
+    "collectorsReputation": 0.3,
+    "collectorsFatigue": 10,
+    "seizeAfterDays": 90,
+    "onTimeForUpgrade": 3,
+    "minAmount": 500,
+    "step": 500
+  },
+  "competition": {
+    "reactionDays": {
+      "training": 30,
+      "realism": 7,
+      "survival": 7
+    },
+    "lossThreshold": 0.05,
+    "lookbackDays": 14,
+    "priceCut": 0.9,
+    "chainMinCheck": 1.9,
+    "qualityStep": 0.05,
+    "qualityMax": 1.5,
+    "dirtyFrom": {
+      "training": 0.5,
+      "realism": 0.5,
+      "survival": 0.35
+    },
+    "denounceChance": 0.15,
+    "closeBelow": 0.1,
+    "closeAfterDays": 60,
+    "closedDays": 30
+  },
+  "eventRules": {
+    "minGapDays": 8,
+    "reviewEveryDays": 7
   }
 }

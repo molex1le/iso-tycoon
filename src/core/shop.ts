@@ -1,5 +1,5 @@
 import { monthOf, seasonOf } from './calendar';
-import { clamp, type GameConfig } from './config';
+import { clamp, totalDays, type GameConfig } from './config';
 import { attractiveness, averageCheck, customersPerDay, marketShare } from './demand';
 import type { GameState } from './state';
 
@@ -24,6 +24,16 @@ export function staffedPosts(state: GameState): number {
 export function periodCapacity(state: GameState, cfg: GameConfig): number {
   const c = cfg.balance.capacity;
   return Math.min(staffedPosts(state) * c.ordersPerBaristaHour, machineOrdersPerHour(state, cfg)) * c.hoursPerPeriod;
+}
+
+/** Почему кофейня не работает сегодня; null – работает. */
+export function closedReason(state: GameState, cfg: GameConfig, day = state.day): string | null {
+  if (day <= state.suspendedUntilDay) return 'опечатана';
+  if (day <= state.closedUntilDay) return 'закрыта на день';
+  if (day <= state.machineDownUntilDay) return 'кофемашина в ремонте';
+  if (machineOrdersPerHour(state, cfg) === 0) return 'нет кофемашины';
+  if (baristas(state).length === 0) return 'нет бариста';
+  return null;
 }
 
 /** Часов в неделю на одного бариста при текущем графике. */
@@ -55,6 +65,14 @@ export function currentQuality(state: GameState, cfg: GameConfig): number {
   return clamp(q, b.quality.min, b.quality.max);
 }
 
+export function flowFactor(state: GameState, day = state.day): number {
+  return state.flowMods.filter((m) => day <= m.untilDay).reduce((a, m) => a * m.factor, 1);
+}
+
+export function costFactor(state: GameState, day = state.day): number {
+  return state.costMods.filter((m) => day <= m.untilDay).reduce((a, m) => a * m.factor, 1);
+}
+
 export interface DemandView {
   quality: number;
   check: number;
@@ -69,17 +87,20 @@ export function demandView(state: GameState, cfg: GameConfig, day = state.day): 
   const b = cfg.balance;
   const quality = currentQuality(state, cfg);
   const check = averageCheck(state.prices, cfg.items);
-  const own = attractiveness(quality, check, state.reputation, b.demand);
-  const rivals = state.competitors.map((c) => attractiveness(c.quality, c.avgCheck, c.reputation, b.demand));
+  const own = attractiveness(quality, check, state.reputation, b.demand) * (state.social ? b.marketing.social.attractiveness : 1);
+  const rivals = state.competitors.map((c) => (day <= c.closedUntilDay ? 0 : attractiveness(c.quality, c.avgCheck, c.reputation, b.demand)));
   const share = marketShare(own, rivals, b.demand.stayHomeWeight);
   const total = own + rivals.reduce((a, s) => a + s, 0) + b.demand.stayHomeWeight;
-  const season = seasonOf(monthOf(Math.min(day, b.time.daysPerMonth * b.time.monthsPerYear), b), b);
-  const expected = customersPerDay({
-    footTraffic: state.footTraffic,
-    season: season.demand,
-    coffeeWantShare: b.demand.coffeeWantShare,
-    awareness: state.awareness,
-    share,
-  });
+  const season = seasonOf(monthOf(Math.min(day, totalDays(b)), b), b);
+  const expected =
+    customersPerDay({
+      footTraffic: state.footTraffic,
+      season: season.demand,
+      coffeeWantShare: b.demand.coffeeWantShare,
+      awareness: state.awareness,
+      share,
+    }) *
+    flowFactor(state, day) *
+    (state.promo ? b.marketing.promo.clientsFactor : 1);
   return { quality, check, share, rivalShares: rivals.map((s) => s / total), expected };
 }
