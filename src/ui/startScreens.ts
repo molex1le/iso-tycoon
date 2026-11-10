@@ -8,11 +8,18 @@ import type { LocationKey } from './scene/models';
 import { SceneView } from './scene/sceneView';
 import { saveSettings, settings } from './settings';
 
+/** Краткое описание сохранения для списка слотов. */
+export interface SlotInfo { day: number; cash: number; difficulty: string; location: string; finished: boolean }
+
 export interface MenuHooks {
-  canContinue: boolean;
-  onContinue: () => void;
-  onNew: () => void;
-  onLoadFile: (text: string) => void;
+  slots: (SlotInfo | null)[];
+  /** слот, в который играли последним */
+  active: number;
+  onContinue: (slot: number) => void;
+  onNew: (slot: number) => void;
+  onDelete: (slot: number) => void;
+  onDownload: (slot: number) => void;
+  onLoadFile: (slot: number, text: string) => void;
 }
 
 const WORLDS: [string, boolean][] = [['Кофейня', true], ['Доставка', false], ['Производство', false], ['Агентство', false], ['Банк', false]];
@@ -24,9 +31,8 @@ export function mountMainMenu(root: HTMLElement, hooks: MenuHooks, error = ''): 
     <div class="st-logo">Iso Tycoon</div>
     <div class="st-sub">Открой кофейню и попробуй не закрыться</div>
     <div class="it-panel st-menu">
-      ${hooks.canContinue ? '<button class="it-btn it-btn--primary" data-a="continue">Продолжить</button>' : ''}
-      <button class="it-btn it-btn--${hooks.canContinue ? 'secondary' : 'primary'}" data-a="new">Новая игра</button>
-      <button class="it-btn it-btn--secondary" data-a="load">Загрузить сейв из файла</button>
+      <div class="lbl">Сохранения</div>
+      ${hooks.slots.map((x, i) => slotHtml(x, i, i === hooks.active, confirmDelete === i)).join('')}
       <input type="file" accept="application/json,.json" hidden data-file>
       ${error ? `<div class="loss">${error}</div>` : ''}
       <div class="lbl">Звук</div>${audioControlsHtml()}
@@ -44,15 +50,48 @@ export function mountMainMenu(root: HTMLElement, hooks: MenuHooks, error = ''): 
   });
   root.querySelector('.st')!.addEventListener('click', (e) => {
     audio.unlock();
-    const a = (e.target as Element).closest<HTMLElement>('button')?.dataset.a;
-    if (a === 'continue') hooks.onContinue();
-    else if (a === 'new') hooks.onNew();
-    else if (a === 'load') file.click();
+    const btn = (e.target as Element).closest<HTMLElement>('button');
+    const a = btn?.dataset.a;
+    if (!btn || !a) return;
+    const slot = Number(btn.dataset.slot);
+    if (a === 'continue') hooks.onContinue(slot);
+    else if (a === 'new') hooks.onNew(slot);
+    else if (a === 'download') hooks.onDownload(slot);
+    else if (a === 'load') {
+      loadSlot = slot;
+      file.click();
+    } else if (a === 'delete') {
+      confirmDelete = slot;
+      mountMainMenu(root, hooks, error);
+    } else if (a === 'delete-no') {
+      confirmDelete = -1;
+      mountMainMenu(root, hooks, error);
+    } else if (a === 'delete-yes') {
+      confirmDelete = -1;
+      hooks.onDelete(slot);
+    }
   });
   file.addEventListener('change', async () => {
     const f = file.files?.[0];
-    if (f) hooks.onLoadFile(await f.text());
+    if (f) hooks.onLoadFile(loadSlot, await f.text());
   });
+}
+
+let confirmDelete = -1;
+let loadSlot = 0;
+
+function slotHtml(x: SlotInfo | null, i: number, active: boolean, confirming: boolean): string {
+  const n = i + 1;
+  if (!x) {
+    return `<div class="st-slot empty"><div class="st-slot-head"><b>Слот ${n}</b><span>пусто</span></div>
+      <div class="it-row"><button class="it-btn it-btn--${active ? 'primary' : 'secondary'}" data-a="new" data-slot="${i}">Новая игра</button><button class="it-btn it-btn--secondary" data-a="load" data-slot="${i}">Из файла</button></div></div>`;
+  }
+  if (confirming) {
+    return `<div class="st-slot"><div class="st-slot-head"><b>Слот ${n}</b><span>Удалить партию? Вернуть её будет нельзя.</span></div>
+      <div class="it-row"><button class="it-btn it-btn--danger" data-a="delete-yes" data-slot="${i}">Удалить</button><button class="it-btn it-btn--secondary" data-a="delete-no" data-slot="${i}">Оставить</button></div></div>`;
+  }
+  return `<div class="st-slot"><div class="st-slot-head"><b>Слот ${n}</b><span>${x.location} · ${x.difficulty} · ${x.finished ? 'партия окончена' : 'день ' + x.day} · ${money(x.cash)}</span></div>
+    <div class="it-row"><button class="it-btn it-btn--${active ? 'primary' : 'secondary'}" data-a="continue" data-slot="${i}">${x.finished ? 'Открыть итог' : 'Продолжить'}</button><button class="it-btn it-btn--secondary st-slot-mini" data-a="download" data-slot="${i}" aria-label="Скачать сейв слота ${n}">Скачать</button><button class="it-btn it-btn--secondary st-slot-mini" data-a="delete" data-slot="${i}" aria-label="Удалить слот ${n}">Удалить</button></div></div>`;
 }
 
 const FORM_TEXT: Record<FormId, string> = {

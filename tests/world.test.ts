@@ -78,6 +78,14 @@ describe('режим разработчика', () => {
     expect(game.state.finished || game.state.pending.length === 0 || game.state.day === 120).toBe(true);
   });
 
+  it('сценарная перемотка доводит партию до конца года без банкротства', () => {
+    const game = new Game(7, defaultOptions(cfg), cfg);
+    game.skipTo(358, true);
+    expect(game.state.finished).toBe(false);
+    expect(game.state.day).toBe(358);
+    expect(game.state.pending.length).toBe(0);
+  });
+
   it('команды отладки: репутация, погода, новый конкурент', () => {
     const game = new Game(7, defaultOptions(cfg), cfg);
     expect(game.dispatch({ type: 'DebugReputation', value: 9 })).toBe(true);

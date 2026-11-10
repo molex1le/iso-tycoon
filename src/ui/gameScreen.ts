@@ -179,7 +179,7 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
     fill(hudEl, `
       <div class="it-stat" data-tip="${tips.cash}"><i class="it-coin"></i><div><div class="lbl">Баланс</div><div class="v ${st.cash < 0 ? 'loss' : ''}">${money(st.cash)}</div></div></div>
       <div class="it-stat" data-tip="${tips.profit}"><div><div class="lbl">Прибыль / день</div><div class="v ${l ? (l.profit < 0 ? 'loss' : 'money') : 'muted'}">${l ? signedMoney(l.profit) : '–'}</div></div></div>
-      <div class="it-stat" data-tip="${tips.cushion}"><div><div class="lbl">Подушка</div><div class="v ${cushion < 21 ? 'loss' : ''}">${cushion === Infinity ? 'в плюсе' : cushion + ' дн.'}</div></div></div>
+      <div class="it-stat" data-tip="${tips.cushion}"><div><div class="lbl">Подушка</div><div class="v ${cushion < 21 ? 'loss' : ''}">${cushion === Infinity ? 'в плюсе' : cushion > 999 ? '999+ дн.' : cushion + ' дн.'}</div></div></div>
       <div class="it-stat" data-tip="${tips.reputation}">${STAR}<div><div class="lbl">Репутация</div><div class="v">${stars(st.reputation)}</div></div></div>
       <div class="it-stat">${PERSON}<div><div class="lbl">Персонал</div><div class="v">${st.employees.length}</div></div></div>
       <div class="it-stat gs-opt" data-tip="${next ? next.title : ''}"><div><div class="lbl">Ближайший срок</div><div class="v ${next && next.day - st.day <= 3 ? 'warn' : ''}">${next ? (next.day <= st.day ? 'сегодня' : 'через ' + (next.day - st.day) + ' дн.') : '–'}</div></div></div>
@@ -669,7 +669,7 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
       <div class="it-row"><button class="it-btn it-btn--secondary" data-skip="1" data-k="s1">+1 дн.</button><button class="it-btn it-btn--secondary" data-skip="7" data-k="s7">+7</button><button class="it-btn it-btn--secondary" data-skip="30" data-k="s30">+30</button><button class="it-btn it-btn--secondary" data-skip="90" data-k="s90">+90</button></div>
       <div class="lbl">Готовые сценарии</div>
       ${devScenarios.map((x) => `<button class="it-btn it-btn--secondary gs-scn" data-scenario="${x.id}" data-k="scn-${x.id}" ${st.day > x.day ? 'disabled' : ''}><b>${x.title}</b><span>${x.note}</span></button>`).join('')}
-      <div class="gs-note">Сценарий перематывает текущую партию до нужного дня. Если день уже позже – начните новую игру. Команд в логе: ${st.commandLog.length} · дней в телеметрии: ${st.history.length}</div>`
+      <div class="gs-note">Сценарий перематывает текущую партию до нужного дня и по дороге не даёт ей обанкротиться. Если день уже позже – начните новую игру. Команд в логе: ${st.commandLog.length} · дней в телеметрии: ${st.history.length}</div>`
       : '';
     fill(menuEl, main + dbg);
   }
@@ -1061,7 +1061,7 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
   function runScenario(id: string): void {
     const x = devScenarios.find((v) => v.id === id);
     if (!x) return;
-    game.skipTo(x.day);
+    game.skipTo(x.day, true);
     const st = s();
     if (x.reputation !== undefined) game.dispatch({ type: 'DebugReputation', value: x.reputation });
     if (x.cashAtLeast !== undefined && st.cash < x.cashAtLeast) game.dispatch({ type: 'DebugAddMoney', amount: x.cashAtLeast - st.cash });

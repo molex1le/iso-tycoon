@@ -41,14 +41,17 @@ export class Game {
   }
 
   /** Перемотка разработчика: доходит до дня day, сама закрывая отчёты, события (первый вариант) и проверки (признать и принять). */
-  skipTo(day: number): number {
+  skipTo(day: number, keepAlive = false): number {
     let done = 0;
     let guard = 0;
     while (this.state.day < day && !this.state.finished && guard++ < 5000) {
       this.autoResolve();
       if (this.state.finished) break;
+      // сценарию нужно дойти до цели: не даём партии обанкротиться по дороге
+      if (keepAlive && this.state.cash < 2000) this.dispatch({ type: 'DebugAddMoney', amount: 5000 - this.state.cash });
       done += this.runDays(1);
     }
+    if (keepAlive) this.autoResolve();
     return done;
   }
 
