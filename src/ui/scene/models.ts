@@ -329,8 +329,6 @@ function school(p: Pen, b: Building): void {
   p.box(x + w / 2 - 0.6, y + d - 0.05, 1.2, 0.65, 22, 3, 'slateroof');
   gable(p, x - 0.06, y - 0.06, w + 0.12, d + 0.12, H, 20, 'greenroof', 'plaster2', 'x');
   p.text('L', x + w / 2, y + d + 0.001, H - 9, 'ШКОЛА', 'sign-dark', 8);
-  p.line([x + 0.4, y + d + 0.6, 0], [x + 0.4, y + d + 0.6, 40], 'pole');
-  p.wallL(x + 0.4, x + 0.85, y + d + 0.6, 30, 40, 'f-l m-red');
 }
 
 function gas(p: Pen, b: Building): void {
@@ -378,10 +376,6 @@ function taxOffice(p: Pen, b: Building): void {
   p.box(x + 0.5, y + d - 0.02, w - 1, 0.04, H - 12, 11, 'metroroof');
   p.text('L', x + w / 2, y + d + 0.02 + 0.001, H - 9, b.title ?? 'НАЛОГОВАЯ', 'sign-text', 8);
   p.box(x + 0.08, y + 0.08, w - 0.16, d - 0.16, H, 3, 'roofgrey');
-  // флаг на крыше
-  p.line([x + w / 2, y + d / 2, H + 3], [x + w / 2, y + d / 2, H + 34], 'pole');
-  p.wallL(x + w / 2, x + w / 2 + 0.7, y + d / 2, H + 23, H + 29, 'f-l m-white');
-  p.wallL(x + w / 2, x + w / 2 + 0.7, y + d / 2, H + 17, H + 23, 'f-l m-red');
 }
 
 function depot(p: Pen, b: Building): void {
@@ -570,16 +564,15 @@ export const BUILDINGS: Building[] = [
   { kind: 'panel', x: 29, y: 0, w: 4, d: 2, floors: 8, variant: 1 },
   { kind: 'brick', x: 29, y: 4, w: 3, d: 3, floors: 4 },
   { kind: 'shop', x: 25, y: 6, w: 3, d: 2, variant: 1, title: 'ОПТИКА' },
-  { kind: 'mall', x: 25, y: 12, w: 6, d: 5, title: 'ТЦ ГАЛЕРЕЯ' },
-  { id: 'tax', kind: 'tax', x: 25, y: 18, w: 4, d: 3 },
-  { kind: 'house', x: 30, y: 18, w: 2, d: 2, variant: 3 },
+  { kind: 'mall', x: 25, y: 12, w: 6, d: 4, title: 'ТЦ ГАЛЕРЕЯ' },
+  { id: 'tax', kind: 'tax', x: 29, y: 18, w: 4, d: 3 },
   // юг: школа и жилые кварталы
   { kind: 'school', x: 1, y: 25, w: 5, d: 3 },
   { id: 'depot', kind: 'depot', x: 1, y: 29.5, w: 6, d: 3 },
-  { id: 'bank', kind: 'bank', x: 11.5, y: 25, w: 4, d: 3 },
+  { id: 'bank', kind: 'bank', x: 11.5, y: 30, w: 4, d: 3 },
   { kind: 'panel', x: 16, y: 25, w: 4, d: 2, floors: 7, variant: 1 },
-  { kind: 'brick', x: 12, y: 29, w: 3, d: 3, floors: 3 },
-  { kind: 'brick', x: 16, y: 29, w: 3, d: 3, floors: 2 },
+  { kind: 'brick', x: 12, y: 25, w: 3, d: 3, floors: 3 },
+  { kind: 'brick', x: 17, y: 29, w: 3, d: 3, floors: 2 },
   { kind: 'gas', x: 25, y: 25, w: 3, d: 3 },
 ];
 
@@ -656,7 +649,7 @@ const PLANS: Record<LocationKey, Plan> = {
     rival0: { x: 29, y: 5, w: 3, d: 3, door: [30.5, 8.5], step: [30.5, 8.05] },
     rival1: { x: 19, y: 15, w: 2, d: 2, door: [21.5, 16.5], step: [21.05, 16.5] },
     rival2: { x: 15, y: 5, w: 3, d: 3, door: [16.5, 8.5], step: [16.5, 8.05] },
-    rival3: { x: 30, y: 18, w: 3, d: 3, door: [31.5, 21.5], step: [31.5, 21.05] },
+    rival3: { x: 25, y: 19, w: 3, d: 2, door: [26.5, 21.5], step: [26.5, 21.05] },
     sources: [{ id: 'mall', name: 'Торговый центр', at: [24.5, 14.5], weight: 0.35 }, { id: 'office', name: 'Бизнес-центр', at: [24.5, 2.5], weight: 0.3 }],
     camera: [27, 8],
   },

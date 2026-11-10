@@ -591,12 +591,13 @@ export class SceneView {
   }
 
   private anchorFor(pos: Pt): Element | null {
-    let idx = -1;
-    for (let i = 0; i < this.statics.length; i++) {
-      const s = this.statics[i];
-      if (pos[1] >= s.y + s.d - 0.01 || pos[0] >= s.x + s.w - 0.01) idx = i;
+    // Рисуем перед первым зданием, которое стоит ближе к зрителю в той же экранной колонке.
+    const u = pos[0] - pos[1];
+    for (const s of this.statics) {
+      if (u < s.x - s.y - s.d - 0.8 || u > s.x + s.w - s.y + 0.8) continue;
+      if (pos[0] < s.x + s.w - 0.01 && pos[1] < s.y + s.d - 0.01) return s.node;
     }
-    return idx + 1 < this.statics.length ? this.statics[idx + 1].node : null;
+    return null;
   }
 
   private insertSorted(node: SVGElement, pos: Pt): void {
