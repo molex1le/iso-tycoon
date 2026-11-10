@@ -553,7 +553,7 @@ export const BUILDINGS: Building[] = [
   { kind: 'house', x: 6, y: 15, w: 2, d: 2, variant: 0 },
   { kind: 'house', x: 3, y: 16, w: 2, d: 2, variant: 1 },
   { kind: 'house', x: 0, y: 15, w: 2, d: 2, variant: 3 },
-  { kind: 'house', x: 6, y: 18, w: 2, d: 2, variant: 2 },
+  { kind: 'house', x: 0, y: 18, w: 2, d: 2, variant: 2 },
   // юго-восток: парк, аптека, остановка
   { kind: 'shop', x: 17, y: 12, w: 3, d: 2, variant: 1 },
   { kind: 'busStop', x: 13, y: 11, w: 2, d: 1 },
