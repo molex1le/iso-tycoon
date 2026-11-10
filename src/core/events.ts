@@ -6,7 +6,7 @@ import { triggerUnplanned } from './inspections';
 import { expectedDailyUsage } from './inventory';
 import { nextRandom } from './rng';
 import { baristas, demandView, machineOrdersPerHour } from './shop';
-import { loyaltyOf } from './staff';
+import { loyaltyOf, traitOf } from './staff';
 import type { Employee, GameState, Pending } from './state';
 
 type EventPending = Extract<Pending, { kind: 'event' }>;
@@ -33,6 +33,10 @@ function findTarget(state: GameState, cfg: GameConfig, w: EventDef['when']): Emp
       (w.role === undefined || e.role === w.role) &&
       (w.fatigueAbove === undefined || e.fatigue >= w.fatigueAbove) &&
       (w.loyaltyBelow === undefined || loyaltyOf(e, cfg) < w.loyaltyBelow) &&
+      (w.loyaltyAbove === undefined || loyaltyOf(e, cfg) > w.loyaltyAbove) &&
+      (w.minTenure === undefined || state.day - e.hiredDay >= w.minTenure) &&
+      (w.trait === undefined || traitOf(e, cfg).id === w.trait) &&
+      (!w.promiseDue || (e.promiseDay !== undefined && state.day >= e.promiseDay)) &&
       (w.envelopeStaff === undefined || !e.official),
   );
 }
@@ -129,7 +133,17 @@ function applyFx(state: GameState, cfg: GameConfig, fx: EventFx, target: Employe
   if (target) {
     if (fx.fatigueTarget) target.fatigue = clamp(target.fatigue + fx.fatigueTarget, 0, 100);
     if (fx.loyaltyTarget) target.loyaltyBonus += fx.loyaltyTarget;
-    if (fx.raiseTarget) target.salary = Math.round(target.salary * (1 + fx.raiseTarget));
+    if (fx.raiseTarget) {
+      target.salary = Math.round(target.salary * (1 + fx.raiseTarget));
+      delete target.promiseDay;
+    }
+    if (fx.promiseTarget) target.promiseDay = day + fx.promiseTarget;
+    if (fx.clearPromise) delete target.promiseDay;
+    if (fx.rivalTarget) {
+      const rival = state.competitors.find((c) => c.id !== 'coffeemarket' && c.closedUntilDay === 0) ?? state.competitors[0];
+      rival.quality = clamp(round2(rival.quality + 0.05), 0, cfg.balance.competition.qualityMax);
+      say(state, cfg, 'joinedRival', 'warn', { name: target.name, rival: rival.name });
+    }
     if (fx.officializeTarget) target.official = true;
     if (fx.leaveTarget) state.employees = state.employees.filter((e) => e.id !== target.id);
   }

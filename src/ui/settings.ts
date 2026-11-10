@@ -3,10 +3,13 @@ export interface Settings {
   music: number;
   sfx: number;
   hints: boolean;
+  tutorialDone: boolean;
+  /** тема панелей: авто – ночью тёмная */
+  theme: 'auto' | 'day' | 'night';
 }
 
 const KEY = 'iso-tycoon-settings';
-const DEFAULTS: Settings = { music: 0.45, sfx: 0.7, hints: true };
+const DEFAULTS: Settings = { music: 0.45, sfx: 0.7, hints: true, tutorialDone: false, theme: 'auto' };
 
 function load(): Settings {
   try {

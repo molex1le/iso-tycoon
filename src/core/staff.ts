@@ -16,6 +16,12 @@ export function loyaltyOf(e: Employee, cfg: GameConfig): number {
   );
 }
 
+/** Характер сотрудника: постоянен и не требует хранения. */
+export function traitOf(e: Employee, cfg: GameConfig): { id: string; name: string; text: string } {
+  const list = cfg.balance.staffStories.traits;
+  return list[e.id % list.length];
+}
+
 /** Утро: готовые медкнижки. */
 export function finishMedBooks(state: GameState, cfg: GameConfig): void {
   for (const e of state.employees) {

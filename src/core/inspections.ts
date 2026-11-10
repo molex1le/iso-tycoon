@@ -3,7 +3,10 @@ import { say, usd } from './feed';
 import { spend } from './finance';
 import { nextRandom } from './rng';
 import { hasCleaner, hoursPerWeek } from './shop';
-import { pickInspectorId, type GameState, type Inspection, type Pending, type VisitResult } from './state';
+import { pickInspectorId, type GameState, type Inspection, type InspectorMemory, type Pending, type VisitResult } from './state';
+
+export type Reply = 'explain' | 'admit' | 'argue';
+type Visit = Extract<Pending, { kind: 'inspectionVisit' }>;
 
 export function checklist(cfg: GameConfig, agency: AgencyId = 'ses'): ChecklistItem[] {
   return cfg.inspections[agency].items as ChecklistItem[];
@@ -112,7 +115,7 @@ export function scheduleInspection(
   const insp: Inspection = {
     id: state.nextId++,
     agency,
-    inspectorId: pickInspectorId(state, cfg, agency),
+    inspectorId: reason === 'repeat' && state.lastInspector?.[agency] ? state.lastInspector[agency]! : pickInspectorId(state, cfg, agency),
     reason,
     cause,
     noticeDay: visitDay - noticeDays,
@@ -221,8 +224,9 @@ function endCriminal(state: GameState): void {
   state.pending = [];
 }
 
-function applyAct(state: GameState, cfg: GameConfig, visit: Extract<Pending, { kind: 'inspectionVisit' }>): void {
+function applyAct(state: GameState, cfg: GameConfig, visit: Visit): void {
   const a = cfg.inspections[visit.agency];
+  (state.lastInspector ??= {})[visit.agency] = visit.inspectorId;
   spend(state, 'fines', visit.totalFine);
   state.stats.fines = round2(state.stats.fines + visit.totalFine);
   if (visit.suspensionDays > 0) {
@@ -244,6 +248,81 @@ function applyAct(state: GameState, cfg: GameConfig, visit: Extract<Pending, { k
   if (visitDay <= totalDays(cfg.balance)) {
     scheduleInspection(state, cfg, visit.agency, 'repeat', visitDay, a.noticeDays, a.reinspectFineMultiplier, 'Проверка исполнения предписания');
   }
+}
+
+function memoryOf(state: GameState, inspectorId: string): InspectorMemory {
+  const all = (state.inspectorMemory ??= {});
+  return (all[inspectorId] ??= { bribes: 0, admits: 0, argues: 0 });
+}
+
+/** Индекс нарушения, по которому ещё не ответили; -1 – разговор окончен. */
+export function nextQuestion(visit: Visit): number {
+  return visit.results.findIndex((r) => r.violated && r.fine > 0 && !r.reply);
+}
+
+/** Чем инспектор встречает директора, если уже знаком. */
+export function memoryLine(state: GameState, cfg: GameConfig, inspectorId: string): string {
+  const m = state.inspectorMemory?.[inspectorId];
+  if (!m) return '';
+  if (m.bribes > 0) return cfg.dialogues.memory.bribe;
+  if (m.argues > m.admits) return cfg.dialogues.memory.argue;
+  return m.admits > 0 ? cfg.dialogues.memory.admit : '';
+}
+
+/** Шанс, что ответ сработает. Спор опирается на настоящую готовность по пункту. */
+export function replyChance(state: GameState, cfg: GameConfig, visit: Visit, index: number, reply: Reply): number {
+  const d = cfg.balance.dialogue;
+  if (reply === 'admit') return 1;
+  const inspector = inspectorById(cfg, visit.inspectorId);
+  const trait = d.traits[inspector.trait as keyof typeof d.traits];
+  const m = state.inspectorMemory?.[visit.inspectorId];
+  if (reply === 'explain') return clamp(trait.explain + (m && m.admits > 0 ? d.memory.admitBonus : 0) - (m && m.argues > 0 ? d.memory.arguePenalty : 0), 0, 1);
+  const score = itemScore(state, cfg, visit.results[index].itemId, true);
+  return clamp(trait.argue + (score >= d.argueScoreHigh ? d.argueHighBonus : score <= d.argueScoreLow ? -d.argueLowPenalty : 0), 0, 1);
+}
+
+/** Ответ инспектору по одному нарушению. Меняет сумму акта. */
+export function answerInspector(state: GameState, cfg: GameConfig, reply: Reply): boolean {
+  const visit = state.pending[0];
+  if (!visit || visit.kind !== 'inspectionVisit') return false;
+  const i = nextQuestion(visit);
+  if (i < 0) return false;
+  const d = cfg.balance.dialogue;
+  const r = visit.results[i];
+  const memory = memoryOf(state, visit.inspectorId);
+  const serious = (d.serious as string[]).includes(r.itemId);
+  r.reply = reply;
+  if (reply === 'admit') {
+    r.fine = round2(r.fine * d.admitFactor);
+    r.replyLine = 'admit';
+    memory.admits++;
+  } else {
+    const ok = nextRandom(state) < replyChance(state, cfg, visit, i, reply);
+    if (ok && serious) {
+      r.fine = round2(r.fine * d.seriousFactor);
+      r.replyLine = reply === 'explain' ? 'explainSoft' : 'argueSoft';
+    } else if (ok) {
+      r.fine = 0;
+      r.violated = false;
+      r.suspensionDays = 0;
+      r.replyLine = reply === 'explain' ? 'explainOk' : 'argueOk';
+    } else if (reply === 'explain') {
+      r.replyLine = 'explainFail';
+    } else {
+      r.fine = round2(r.fine * d.argueFailFactor);
+      r.replyLine = 'argueFail';
+      memory.argues++;
+    }
+  }
+  visit.totalFine = round2(visit.results.reduce((a, x) => a + x.fine, 0));
+  visit.suspensionDays = Math.max(0, ...visit.results.map((x) => x.suspensionDays));
+  return true;
+}
+
+/** Цена «договориться»: кто уже брал, тот берёт дороже. */
+export function bribeCost(state: GameState, cfg: GameConfig, visit: Visit): number {
+  const base = visit.totalFine * cfg.inspections[visit.agency].bribe.costShare;
+  return round2(state.inspectorMemory?.[visit.inspectorId]?.bribes ? base * cfg.balance.dialogue.memory.bribeCostFactor : base);
 }
 
 /** Решение игрока по акту: принять, оспорить или «договориться». */
@@ -269,8 +348,9 @@ export function resolveVisit(state: GameState, cfg: GameConfig, choice: 'accept'
     if (nextRandom(state) < a.bribe.caughtChance) {
       endCriminal(state);
     } else {
-      const cost = round2(visit.totalFine * a.bribe.costShare);
+      const cost = bribeCost(state, cfg, visit);
       spend(state, 'fines', cost);
+      memoryOf(state, visit.inspectorId).bribes++;
       say(state, cfg, 'bribeOk', 'warn', { amount: usd(cost) });
     }
   }

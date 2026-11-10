@@ -44,6 +44,8 @@ export interface Employee {
   official: boolean;
   /** накопленные события: премии, отказы */
   loyaltyBonus: number;
+  /** день, к которому обещан разговор о зарплате */
+  promiseDay?: number;
 }
 
 export interface Candidate {
@@ -84,6 +86,17 @@ export interface VisitResult {
   suspensionDays: number;
   /** сколько раз нарушено (например, сотрудников без медкнижки) */
   count: number;
+  /** как игрок ответил инспектору */
+  reply?: 'explain' | 'admit' | 'argue';
+  /** какой реплики удостоился ответ */
+  replyLine?: 'explainOk' | 'explainSoft' | 'explainFail' | 'admit' | 'argueOk' | 'argueSoft' | 'argueFail';
+}
+
+/** Что инспектор запомнил о директоре. */
+export interface InspectorMemory {
+  bribes: number;
+  admits: number;
+  argues: number;
 }
 
 /** Событие, которое ставит игру на паузу и ждёт игрока. */
@@ -297,6 +310,10 @@ export interface GameState {
   feed: FeedEntry[];
   prices: Record<string, number>;
   competitors: Competitor[];
+  /** память инспекторов по их id */
+  inspectorMemory?: Record<string, InspectorMemory>;
+  /** кто последним проверял каждое ведомство */
+  lastInspector?: Partial<Record<AgencyId, string>>;
   history: DayRecord[];
   commandLog: LoggedCommand[];
 }

@@ -2,7 +2,7 @@ import { clamp, defaultConfig, round2, type AccountingId, type AgencyId, type Eq
 import { chooseOption } from './events';
 import { say, usd } from './feed';
 import { fileDeclaration, payTax, spend } from './finance';
-import { checklist, itemScore, resolveVisit, triggerUnplanned } from './inspections';
+import { answerInspector, checklist, itemScore, resolveVisit, triggerUnplanned, type Reply } from './inspections';
 import { repayLoan, restructure, takeLoan } from './loans';
 import { nextRandom } from './rng';
 import { simulateDay } from './simulateDay';
@@ -36,6 +36,7 @@ export type Command =
   | { type: 'SetServiceContract'; on: boolean }
   | { type: 'Acknowledge' }
   | { type: 'ResolveInspection'; choice: 'accept' | 'contest' | 'bribe' }
+  | { type: 'AnswerInspector'; reply: Reply }
   | { type: 'ChooseEventOption'; index: number }
   | { type: 'DebugAddMoney'; amount: number }
   | { type: 'DebugInspection'; agency?: AgencyId }
@@ -216,6 +217,8 @@ function run(state: GameState, command: Command, cfg: GameConfig): boolean {
     }
     case 'ResolveInspection':
       return resolveVisit(state, cfg, command.choice);
+    case 'AnswerInspector':
+      return answerInspector(state, cfg, command.reply);
     case 'ChooseEventOption':
       return chooseOption(state, cfg, command.index);
     case 'DebugAddMoney': {

@@ -2,6 +2,7 @@ import balanceJson from '../data/balance.json';
 import eventsJson from '../data/events.json';
 import reviewsJson from '../data/reviews.json';
 import inspectionsJson from '../data/inspections.json';
+import dialoguesJson from '../data/dialogues.json';
 import inspectorsJson from '../data/inspectors.json';
 import itemsJson from '../data/items.json';
 import materialsJson from '../data/materials.json';
@@ -82,6 +83,11 @@ export interface EventFx {
   loyaltyTarget?: number;
   raiseTarget?: number;
   leaveTarget?: number;
+  /** ушедший сотрудник усиливает конкурента */
+  rivalTarget?: number;
+  /** обещание вернуться к разговору через N дней */
+  promiseTarget?: number;
+  clearPromise?: number;
   officializeTarget?: number;
   contractWeeks?: number;
   rentFactor?: number;
@@ -122,6 +128,10 @@ export interface EventDef {
     repBelow?: number;
     fatigueAbove?: number;
     loyaltyBelow?: number;
+    loyaltyAbove?: number;
+    minTenure?: number;
+    trait?: string;
+    promiseDue?: boolean;
     envelopeStaff?: boolean;
     target?: boolean;
     role?: string;
@@ -132,12 +142,28 @@ export interface EventDef {
   options: EventOption[];
 }
 
+export interface DialogueItem {
+  ask: string;
+  explain: string;
+  admit: string;
+  argue: string;
+}
+
+export interface Dialogues {
+  opening: Record<string, string>;
+  memory: Record<'bribe' | 'admit' | 'argue', string>;
+  items: Record<string, DialogueItem>;
+  results: Record<'explainOk' | 'explainSoft' | 'explainFail' | 'admit' | 'argueOk' | 'argueSoft' | 'argueFail', string>;
+  replyNames: Record<'explain' | 'admit' | 'argue', string>;
+}
+
 export interface GameConfig {
   balance: Balance;
   items: Item[];
   materials: Material[];
   inspections: Inspections;
   inspectors: Inspector[];
+  dialogues: Dialogues;
   names: string[];
   events: EventDef[];
   reviews: Record<string, string[]>;
@@ -150,6 +176,7 @@ export const defaultConfig: GameConfig = {
   materials: materialsJson,
   inspections: inspectionsJson,
   inspectors: inspectorsJson,
+  dialogues: dialoguesJson as Dialogues,
   names: namesJson,
   events: eventsJson as unknown as EventDef[],
   reviews: reviewsJson,

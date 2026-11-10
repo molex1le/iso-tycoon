@@ -16,6 +16,8 @@ export interface ChartSpec {
   /** фиксированный низ оси, например 0 */
   min?: number;
   max?: number;
+  /** отметки решений на линии: игровой день и подпись */
+  marks?: { day: number; label: string; tone: 'good' | 'bad' | 'neutral' }[];
 }
 
 const W = 480;
@@ -74,6 +76,16 @@ export function lineChart(id: string, spec: ChartSpec): string {
   const lines = spec.series
     .map((s) => `<polyline class="c-line" style="stroke:${s.color}" points="${s.values.map((v, i) => `${sx(i).toFixed(1)},${sy(v).toFixed(1)}`).join(' ')}"/>`)
     .join('');
+  // отметки решений: номер на линии, подпись – в таблице под графиком и в подсказке
+  const marks = (spec.marks ?? [])
+    .map((m, k) => {
+      let i = spec.x.findIndex((d) => d >= m.day);
+      if (i < 0) i = n - 1;
+      const v = spec.series[0].values[i];
+      const y = Math.max(T + 9, sy(v) - 14);
+      return `<g class="c-mark ${m.tone}"><line x1="${sx(i).toFixed(1)}" x2="${sx(i).toFixed(1)}" y1="${y.toFixed(1)}" y2="${sy(v).toFixed(1)}"/><circle cx="${sx(i).toFixed(1)}" cy="${y.toFixed(1)}" r="9"/><text x="${sx(i).toFixed(1)}" y="${(y + 3.5).toFixed(1)}" text-anchor="middle">${k + 1}</text></g>`;
+    })
+    .join('');
   const ends = spec.series.map((s) => `<circle class="c-dot" style="fill:${s.color}" cx="${sx(n - 1).toFixed(1)}" cy="${sy(s.values[n - 1]).toFixed(1)}" r="4"/>`).join('');
 
   // подписи на концах линий, раздвинутые, чтобы не слипались
@@ -84,7 +96,7 @@ export function lineChart(id: string, spec: ChartSpec): string {
     labels = placed.map((p) => `<text class="c-end" x="${right + 9}" y="${Math.min(H - B, p.y).toFixed(1)}">${p.name}</text>`).join('');
   }
   return `<div class="gs-card gs-chart">${head}
-    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${spec.title}" data-chart="${id}">${grid}${xTicks}${lines}${ends}${labels}<g class="c-hover" hidden></g><rect class="c-hit" x="${L}" y="${T}" width="${right - L}" height="${H - T - B}"/></svg></div>`;
+    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${spec.title}" data-chart="${id}">${grid}${xTicks}${lines}${marks}${ends}${labels}<g class="c-hover" hidden></g><rect class="c-hit" x="${L}" y="${T}" width="${right - L}" height="${H - T - B}"/></svg></div>`;
 }
 
 /** Перекрестие и подсказка: один делегированный обработчик на контейнер. */
@@ -103,8 +115,9 @@ export function bindCharts(host: HTMLElement, showTip: (html: string, x: number,
     hover.innerHTML =
       `<line class="c-cross" x1="${g.sx(i)}" x2="${g.sx(i)}" y1="${T}" y2="${H - B}"/>` +
       g.spec.series.map((s) => `<circle class="c-dot" style="fill:${s.color}" cx="${g.sx(i)}" cy="${g.sy(s.values[i])}" r="4"/>`).join('');
+    const near = (g.spec.marks ?? []).filter((m) => Math.abs(m.day - g.spec.x[i]) <= Math.max(1, Math.round((g.spec.x[n - 1] - g.spec.x[0]) / (n - 1))));
     showTip(
-      `<b>День ${g.spec.x[i]}</b>` + g.spec.series.map((s) => `<div class="c-tip"><i style="background:${s.color}"></i><span>${s.name}</span><b>${g.spec.format(s.values[i])}</b></div>`).join(''),
+      `<b>День ${g.spec.x[i]}</b>` + near.map((m) => `<div>${m.label}</div>`).join('') + g.spec.series.map((s) => `<div class="c-tip"><i style="background:${s.color}"></i><span>${s.name}</span><b>${g.spec.format(s.values[i])}</b></div>`).join(''),
       e.clientX,
       e.clientY,
     );

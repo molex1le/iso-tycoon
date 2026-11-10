@@ -178,3 +178,44 @@ html, body { margin: 0; height: 100%; background: var(--surface); }
 
 .st-map { position: relative; height: min(280px, 34vh); border-radius: var(--radius-sm); overflow: hidden; background: #bfe3f2; }
 .gs-dock-sep { width: 2px; margin: 6px 4px; background: var(--border); }
+
+[data-theme="night"] { --c1: #d9744f; --c2: #4e8fdb; --c3: #2aa892; }
+.gs[data-theme="night"] { color: var(--ink); }
+/* зал */
+.gs-hall { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(220px, 1fr); gap: 16px; align-items: start; }
+.gs-interior { --dim: 0%; --lit: 0%; --glow: 0; --dusk: 0; --nightc: #141c33; background: var(--panel-inset); border-radius: var(--radius-sm); }
+.gs-interior svg { display: block; width: 100%; height: auto; cursor: default; }
+.gs-interior .hot { cursor: pointer; }
+.gs-interior .hot:hover { filter: brightness(1.12); }
+.gs-interior .hot:focus-visible { outline: 3px solid var(--focus); }
+@media (max-width: 900px) { .gs-hall { grid-template-columns: minmax(0, 1fr); } }
+/* сцена проверки */
+.gs-modal.gs-visit { width: min(720px, 100%); }
+.gs-visit-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+.gs-bubble { position: relative; background: var(--deep); color: var(--on-deep); border-radius: var(--radius-sm); padding: 12px 14px; font-size: 15px; line-height: 22px; }
+.gs-bubble::before { content: ""; position: absolute; left: 22px; top: -8px; border: 8px solid transparent; border-top: 0; border-bottom-color: var(--deep); }
+.gs-check small { color: var(--money); font-weight: 600; }
+.gs-visit .it-choice { white-space: normal; text-align: left; }
+@media (max-width: 640px) { .gs-visit-grid { grid-template-columns: minmax(0, 1fr); } }
+/* итог */
+.gs-modal.gs-endcard { width: min(820px, 100%); }
+.gs-cause { border-left: 4px solid var(--danger); padding-left: 10px; font-size: 14px; line-height: 20px; color: var(--ink); }
+.gs-marks { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: 13px; line-height: 18px; }
+.gs-marks li { display: flex; gap: 8px; align-items: flex-start; }
+.gs-marks b { flex: none; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; background: var(--panel-inset); border: 2px solid var(--ink-muted); }
+.gs-marks li.bad b { border-color: var(--danger); }
+.gs-marks li.good b { border-color: var(--money); }
+.c-mark line { stroke: var(--ink-muted); stroke-width: 1; }
+.c-mark circle { fill: var(--panel); stroke: var(--ink-muted); stroke-width: 2; }
+.c-mark.bad circle { stroke: var(--danger); }
+.c-mark.good circle { stroke: var(--money); }
+.c-mark text { font: 700 10px var(--font-sans); fill: var(--ink); }
+.gs-fb textarea { width: 100%; resize: vertical; box-sizing: border-box; }
+.gs-fb-seg { flex: none; }
+/* обучение */
+.gs-tut-spot { position: absolute; z-index: 7; border-radius: 12px; box-shadow: 0 0 0 3px var(--coin), 0 0 0 9999px #0000006b; pointer-events: none; transition: left .15s, top .15s, width .15s, height .15s; }
+.gs-tut-spot[hidden], .gs-tut[hidden] { display: none; }
+.gs-tut { position: absolute; z-index: 8; width: min(360px, calc(100% - 24px)); padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
+@media (prefers-reduced-motion: reduce) { .gs-tut-spot { transition: none; } }
+
+@media (max-width: 760px) { .it-hud .it-stat:not(:first-child) { display: none; } .it-date { min-width: 0; } }

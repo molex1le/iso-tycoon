@@ -108,7 +108,7 @@ function route(a: Pt, b: Pt): Pt[] {
 /** 0 – день, 1 – ночь, плавные сумерки. */
 export function nightFactor(hour: number): number {
   const ramp = (a: number, b: number) => Math.min(1, Math.max(0, (hour - a) / (b - a)));
-  if (hour < 12) return 1 - ramp(5, 7.5);
+  if (hour < 12) return 1 - ramp(3.5, 5.5);
   return ramp(18, 21);
 }
 

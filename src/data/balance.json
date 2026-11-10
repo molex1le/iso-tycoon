@@ -553,5 +553,62 @@
   "eventRules": {
     "minGapDays": 8,
     "reviewEveryDays": 7
+  },
+  "dialogue": {
+    "traits": {
+      "formalist": {
+        "explain": 0.25,
+        "argue": 0.1
+      },
+      "practical": {
+        "explain": 0.4,
+        "argue": 0.2
+      },
+      "tired": {
+        "explain": 0.55,
+        "argue": 0.25
+      }
+    },
+    "admitFactor": 0.75,
+    "argueFailFactor": 1.3,
+    "seriousFactor": 0.5,
+    "serious": [
+      "offbook",
+      "returns",
+      "officialStaff"
+    ],
+    "argueScoreHigh": 70,
+    "argueHighBonus": 0.4,
+    "argueScoreLow": 30,
+    "argueLowPenalty": 0.1,
+    "memory": {
+      "admitBonus": 0.1,
+      "arguePenalty": 0.1,
+      "bribeCostFactor": 1.4
+    }
+  },
+  "staffStories": {
+    "traits": [
+      {
+        "id": "ambitious",
+        "name": "Амбициозный",
+        "text": "Хочет расти. Чаще предлагает идеи и просит денег."
+      },
+      {
+        "id": "family",
+        "name": "Семейный",
+        "text": "Надёжен, но иногда нужен дома."
+      },
+      {
+        "id": "artist",
+        "name": "Творческий",
+        "text": "Любит латте-арт и внимание гостей."
+      },
+      {
+        "id": "steady",
+        "name": "Спокойный",
+        "text": "Работает ровно и ценит хорошее отношение."
+      }
+    ]
   }
 }

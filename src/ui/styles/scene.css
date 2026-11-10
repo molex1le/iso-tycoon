@@ -98,3 +98,11 @@
 .flow-label.small { font-size: 12px; }
 .flow-label.you { font-size: 17px; fill: #ffd86b; }
 @media (prefers-reduced-motion: reduce) { .flow-line { animation: none; } }
+
+.floor-dirt { fill: #3a281680; stroke: none !important; }
+.menu-line { stroke: #f7f2e8; stroke-width: 1.5; }
+.neon-sign { font-family: var(--font-display); fill: #ffe08a; stroke: none; }
+.alarm-led { fill: #e5484d; stroke: #fff !important; }
+.person .body.apron { fill: #4a2f21; }
+.person .cap { fill: #c4512d; }
+.cup-small { fill: #fff; }

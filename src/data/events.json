@@ -102,7 +102,17 @@
       {
         "label": "Отпустить",
         "fx": {
-          "leaveTarget": 1
+          "leaveTarget": 1,
+          "rivalTarget": 1
+        },
+        "note": "уйдёт к ним и усилит конкурента"
+      },
+      {
+        "label": "Пообещать прибавку через месяц",
+        "note": "не сдержите – будет хуже",
+        "fx": {
+          "promiseTarget": 30,
+          "loyaltyTarget": 15
         }
       }
     ]
@@ -582,6 +592,195 @@
         "label": "Спасибо словами",
         "fx": {
           "loyaltyAll": -5
+        }
+      }
+    ]
+  },
+  {
+    "id": "raise_ask",
+    "title": "{name} просит прибавку",
+    "text": "Подходит после смены: «Работаю уже не первый месяц. Цены растут, а зарплата нет. Можем поговорить?»",
+    "when": {
+      "minTenure": 60,
+      "dailyChance": 0.012,
+      "cooldown": 40,
+      "target": true,
+      "role": "barista"
+    },
+    "options": [
+      {
+        "label": "Поднять на 10%",
+        "fx": {
+          "raiseTarget": 0.1,
+          "loyaltyTarget": 10
+        }
+      },
+      {
+        "label": "Обещать вернуться к этому через месяц",
+        "note": "запомнит обещание",
+        "fx": {
+          "promiseTarget": 30
+        }
+      },
+      {
+        "label": "Отказать",
+        "fx": {
+          "loyaltyTarget": -15
+        }
+      }
+    ]
+  },
+  {
+    "id": "promise_due",
+    "title": "{name} напоминает об обещании",
+    "text": "«Месяц прошёл. Вы говорили, что вернёмся к разговору о деньгах».",
+    "when": {
+      "promiseDue": true,
+      "dailyChance": 1,
+      "target": true
+    },
+    "options": [
+      {
+        "label": "Сдержать слово: +10%",
+        "fx": {
+          "raiseTarget": 0.1,
+          "loyaltyTarget": 15
+        }
+      },
+      {
+        "label": "Сказать, что денег нет",
+        "note": "сильный удар по лояльности",
+        "fx": {
+          "loyaltyTarget": -30,
+          "clearPromise": 1
+        }
+      }
+    ]
+  },
+  {
+    "id": "family_day",
+    "title": "{name} просит отгул",
+    "text": "Дома заболел ребёнок, сидеть не с кем. Подменить можно, но смена будет тяжёлой.",
+    "when": {
+      "trait": "family",
+      "weeklyChance": 0.06,
+      "cooldown": 50,
+      "target": true,
+      "role": "barista",
+      "minTenure": 14
+    },
+    "options": [
+      {
+        "label": "Отпустить и заплатить подмене",
+        "cost": 60,
+        "fx": {
+          "loyaltyTarget": 15
+        }
+      },
+      {
+        "label": "Отпустить, остальные справятся",
+        "fx": {
+          "fatigueAll": 10,
+          "loyaltyTarget": 10
+        }
+      },
+      {
+        "label": "Отказать",
+        "fx": {
+          "loyaltyTarget": -20
+        }
+      }
+    ]
+  },
+  {
+    "id": "idea",
+    "title": "У бариста идея: {name}",
+    "text": "«Давайте сделаем сезонный напиток. Ингредиенты на пробу – пара сотен, зато будет о чём говорить».",
+    "when": {
+      "trait": "ambitious",
+      "weeklyChance": 0.05,
+      "cooldown": 60,
+      "target": true,
+      "role": "barista",
+      "minTenure": 30
+    },
+    "options": [
+      {
+        "label": "Дать попробовать",
+        "cost": 150,
+        "chance": 0.6,
+        "okText": "Гости заказывают и фотографируют.",
+        "failText": "Напиток не зашёл, но попытка понравилась команде.",
+        "fx": {
+          "reputation": 0.15,
+          "awareness": 0.03,
+          "loyaltyTarget": 10
+        },
+        "fxFail": {
+          "loyaltyTarget": 5
+        }
+      },
+      {
+        "label": "Сейчас не до этого",
+        "fx": {
+          "loyaltyTarget": -5
+        }
+      }
+    ]
+  },
+  {
+    "id": "latte_art",
+    "title": "{name} и латте-арт",
+    "text": "Рисунок на капучино разлетелся по районным чатам. Гости спрашивают, кто это сделал.",
+    "when": {
+      "trait": "artist",
+      "weeklyChance": 0.04,
+      "cooldown": 70,
+      "target": true,
+      "role": "barista",
+      "minTenure": 20
+    },
+    "options": [
+      {
+        "label": "Выложить в соцсети и похвалить",
+        "fx": {
+          "awareness": 0.04,
+          "loyaltyTarget": 10
+        }
+      },
+      {
+        "label": "Попросить делать быстрее",
+        "fx": {
+          "loyaltyTarget": -8
+        }
+      }
+    ]
+  },
+  {
+    "id": "stayed_loyal",
+    "title": "{name} отказал(а) конкурентам",
+    "text": "«Звали в другую кофейню за большие деньги. Сказал(а) нет – тут хорошо работать».",
+    "when": {
+      "trait": "steady",
+      "loyaltyAbove": 70,
+      "weeklyChance": 0.04,
+      "cooldown": 90,
+      "target": true,
+      "role": "barista",
+      "minTenure": 45
+    },
+    "options": [
+      {
+        "label": "Выписать премию",
+        "cost": 100,
+        "fx": {
+          "loyaltyTarget": 15
+        }
+      },
+      {
+        "label": "Просто поблагодарить",
+        "fx": {
+          "loyaltyTarget": 3
         }
       }
     ]

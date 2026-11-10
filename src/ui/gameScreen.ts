@@ -18,10 +18,14 @@ import { hash } from './scene/pen';
 import { nightFactor, SceneView } from './scene/sceneView';
 import { settings, saveSettings } from './settings';
 import tips from '../data/tips.json';
+import tutorial from '../data/tutorial.json';
+import { interiorSvg } from './scene/interior';
 import { advise } from '../core/advisor';
+import { bribeCost, memoryLine, replyChance, type Reply } from '../core/inspections';
+import { gameSummary } from '../core/summary';
 
-type Tab = 'overview' | 'finance' | 'prices' | 'staff' | 'stock' | 'checks' | 'gear' | 'bank' | 'dates' | 'journal';
-const TABS: [Tab, string][] = [['overview', 'Обзор'], ['finance', 'Финансы'], ['prices', 'Цены'], ['staff', 'Люди'], ['stock', 'Склад'], ['checks', 'Проверки'], ['gear', 'Техника'], ['bank', 'Банк'], ['dates', 'Сроки'], ['journal', 'Журнал']];
+type Tab = 'hall' | 'overview' | 'finance' | 'prices' | 'staff' | 'stock' | 'checks' | 'gear' | 'bank' | 'dates' | 'journal';
+const TABS: [Tab, string][] = [['hall', 'Зал'], ['overview', 'Обзор'], ['finance', 'Финансы'], ['prices', 'Цены'], ['staff', 'Люди'], ['stock', 'Склад'], ['checks', 'Проверки'], ['gear', 'Техника'], ['bank', 'Банк'], ['dates', 'Сроки'], ['journal', 'Журнал']];
 
 const STAR = '<svg class="it-ico" viewBox="0 0 20 20" style="color:var(--coin-shade)"><path d="m10 1.5 2.6 5.3 5.9.9-4.3 4.1 1 5.8L10 14.9l-5.2 2.7 1-5.8L1.5 7.7l5.9-.9z"/></svg>';
 const PERSON = '<svg class="it-ico" viewBox="0 0 20 20" style="color:var(--ink-muted)"><circle cx="10" cy="6" r="3.5"/><path d="M3 18c0-4 3-6.5 7-6.5s7 2.5 7 6.5z"/></svg>';
@@ -57,6 +61,11 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
   let menuOpen = false;
   let debugOpen = false;
   let flowsOn = false;
+  const fb = { clear: 0, fun: 0, hard: 0, text: '' };
+  let fbCopied = false;
+  let feedbackOpen = false;
+  let tutStep = !settings.tutorialDone && game.state.day === 1 && game.state.commandLog.length === 0 ? 0 : -1;
+  let themeApplied = '';
   let feedSeen = game.state.feed.length;
   let visitKey = '';
   let visitShown = 0;
@@ -76,6 +85,8 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
       <div class="gs-win-main"><div class="gs-win-head" data-ref="head"></div><div class="gs-win-body" data-ref="side"></div></div>
     </div>
     <div class="it-panel gs-dock" data-ref="dock"></div>
+    <div class="gs-tut-spot" data-ref="spot" hidden></div>
+    <div class="it-panel gs-tut" data-ref="tut" role="dialog" aria-label="Обучение" hidden></div>
     <div class="gs-tip" data-ref="tip" hidden></div>
     <div class="gs-end" data-ref="modal" hidden></div>
   </div>`;
@@ -92,11 +103,13 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
   const headEl = ref('head');
   const dockEl = ref('dock');
   const tipEl = ref('tip');
+  const tutEl = ref('tut');
+  const spotEl = ref('spot');
   const scene = new SceneView(ref('map'), (id) => {
     if (id === 'player') {
       selected = null;
       windowOpen = true;
-      tab = 'overview';
+      tab = 'hall';
       audio.play('open');
     } else selected = id;
     renderAll();
@@ -113,6 +126,7 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
     tipEl.hidden = true;
   };
   bindCharts(sideEl, showTip, hideTip);
+  bindCharts(modalEl, showTip, hideTip);
   screen.addEventListener('pointerover', (e) => {
     const t = (e.target as Element).closest<HTMLElement>('[data-tip]');
     if (t) showTip(t.dataset.tip!, e.clientX, e.clientY);
@@ -244,8 +258,8 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
     fill(navEl, TABS.map(([id, name]) => btn(id, name)).join(''));
     const loc = b.locations[st.options.location];
     fill(headEl, `<div class="grow"><span class="it-lvl">${b.forms[st.options.form].name} · ${loc.name.toUpperCase()}</span> <span class="ttl">${st.shopName}</span></div><button class="it-btn it-btn--ghost it-btn--icon" data-close data-k="close" aria-label="Закрыть">✕</button>`);
-    const flow: Partial<Record<Tab, boolean>> = { overview: false, finance: false, journal: false };
-    const body = { overview: overviewHtml, finance: financeHtml, prices: pricesHtml, staff: staffHtml, stock: stockHtml, checks: checksHtml, gear: gearHtml, bank: bankHtml, dates: datesHtml, journal: journalHtml }[tab]();
+    const flow: Partial<Record<Tab, boolean>> = { hall: false, overview: false, finance: false, journal: false };
+    const body = { hall: hallHtml, overview: overviewHtml, finance: financeHtml, prices: pricesHtml, staff: staffHtml, stock: stockHtml, checks: checksHtml, gear: gearHtml, bank: bankHtml, dates: datesHtml, journal: journalHtml }[tab]();
     fill(sideEl, flow[tab] === false ? body : `<div class="gs-cols">${body}</div>`);
   }
 
@@ -284,6 +298,19 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
     return `<header><div class="t"><span class="it-lvl">КОНКУРЕНТ</span><div class="ttl" style="margin-top:6px">«${c.name}»</div></div>${closeBtn}</header>
       <div class="gs-facts">${row('Средний чек', price(c.avgCheck))}${row('Качество', c.quality.toLocaleString('ru-RU'))}${row('Репутация', stars(c.reputation))}${row('Доля прохожих', percent(v.rivalShares[i]))}${row('Ваша доля', percent(v.share))}</div>
       <div class="gs-note">Ваш чек ${price(v.check)}, качество ${v.quality.toFixed(2).replace('.', ',')}.</div>${back}`;
+  }
+
+  function hallHtml(): string {
+    const st = s();
+    const l = last();
+    const title = /«(.+)»/.exec(st.shopName)?.[1] ?? st.shopName;
+    const loc = b.locations[st.options.location];
+    const missing = ([['fridge', 'холодильник'], ['furniture', 'мебель'], ['signage', 'вывеска'], ['extinguishers', 'огнетушители'], ['evacPlan', 'план эвакуации'], ['alarm', 'сигнализация']] as const).filter(([id]) => !st.equipment.includes(id)).map(([, n]) => n);
+    return `<div class="gs-hall"><div class="gs-interior">${interiorSvg(st, cfg, title)}</div>
+      <div class="gs-sec"><div class="gs-facts">${row('Мест в зале', String(loc.seats))}${row('Бариста на смене', String(Math.min(st.posts, st.employees.filter((e) => e.role === 'barista').length)))}${row('Обслужено вчера', l ? String(l.served) : '–')}${row('Ушли из очереди', l ? String(l.lostQueue) : '–', l && l.lostQueue ? 'loss' : '')}${row('Чистота', Math.round(st.cleanliness) + ' из 100', st.cleanliness < 50 ? 'loss' : '')}</div>
+      ${closedNote()}
+      <div class="gs-note">${missing.length ? `Пока нет: ${missing.join(', ')}. Покупки – во вкладке «Техника».` : 'Зал укомплектован полностью.'}</div>
+      <div class="gs-note">Кликните по кофемашине, бариста или холодильнику – откроется нужная вкладка.</div></div></div>`;
   }
 
   function adviceHtml(): string {
@@ -573,8 +600,10 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
     const main = menuOpen
       ? `<div class="lbl">Настройки</div>${audioControlsHtml()}
       <label class="gs-check-line"><input type="checkbox" data-hints ${settings.hints ? 'checked' : ''}> Советник во вкладке «Обзор»</label>
+      <div class="it-row"><span class="grow">Панели</span><div class="it-seg gs-fb-seg">${([['auto', 'Авто'], ['day', 'День'], ['night', 'Ночь']] as const).map(([v, n]) => `<button class="${settings.theme === v ? 'on' : ''}" data-theme-set="${v}" data-k="th-${v}" aria-pressed="${settings.theme === v}">${n}</button>`).join('')}</div></div>
       <div class="lbl">Партия</div>
       <div class="it-row"><button class="it-btn it-btn--secondary" data-act="download" data-k="dl">Скачать сейв</button><button class="it-btn it-btn--secondary" data-act="csv" data-k="csv">Телеметрия CSV</button></div>
+      <div class="it-row"><button class="it-btn it-btn--secondary" data-fb-act="open" data-k="fb-o">Оставить отзыв</button><button class="it-btn it-btn--secondary" data-tut="1" data-k="tut">Обучение заново</button></div>
       <button class="it-btn it-btn--secondary" data-act="menu" data-k="main">Главное меню</button>
       <div class="gs-note">Игра сохраняется сама каждый день. Пробел – пауза, 1 / 2 / 3 – скорость, колесо – зум, Esc – закрыть окно, F2 – отладка.</div>`
       : '';
@@ -649,28 +678,52 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
   }
 
   function visitHtml(p: Extract<Pending, { kind: 'inspectionVisit' }>): string {
+    const st = s();
     const items = checklist(cfg, p.agency);
     const a = cfg.inspections[p.agency];
     const done = visitShown >= p.results.length;
+    const inspector = inspectorById(cfg, p.inspectorId);
+    const ask = !done && p.results[visitShown].violated && p.results[visitShown].fine > 0 && !p.results[visitShown].reply;
     const rows = p.results.map((r, i) => {
       const item = items.find((x) => x.id === r.itemId)!;
       if (i > visitShown) return `<div class="gs-check wait"><span class="mark">·</span><span class="grow">${item.name}</span></div>`;
       if (i === visitShown && !done) return `<div class="gs-check now"><span class="mark">…</span><span class="grow">${item.name}</span></div>`;
-      return `<div class="gs-check ${r.violated ? 'bad' : 'ok'}"><span class="mark">${r.violated ? '✕' : '✓'}</span><span class="grow">${item.name}${r.count > 1 ? ` ×${r.count}` : ''}</span>${r.violated ? `<span class="num loss">${money(r.fine)}</span>` : ''}</div>`;
+      const cleared = !r.violated && r.reply;
+      return `<div class="gs-check ${r.violated ? 'bad' : 'ok'}"><span class="mark">${r.violated ? '✕' : '✓'}</span><span class="grow">${item.name}${r.count > 1 ? ` ×${r.count}` : ''}${cleared ? ' <small>снято</small>' : ''}</span>${r.violated ? `<span class="num loss">${money(r.fine)}</span>` : ''}</div>`;
     }).join('');
+    const answered = p.results.filter((r, i) => r.replyLine && i <= visitShown);
+    const lastLine = answered[answered.length - 1]?.replyLine;
+    const memory = memoryLine(st, cfg, p.inspectorId);
+    let say = lastLine ? cfg.dialogues.results[lastLine] : memory || (cfg.dialogues.opening[inspector.trait] ?? '');
+    if (ask) say = cfg.dialogues.items[p.results[visitShown].itemId]?.ask ?? 'Это нарушение. Что скажете?';
+    else if (done) say = p.totalFine === 0 ? 'Всё в порядке. Хорошего дня.' : `Итого: ${money(p.totalFine)}. Подпишете акт?`;
     let foot = '';
-    if (done && p.totalFine === 0) foot = `<div class="money" style="font-weight:600">Нарушений нет. Работаем дальше.</div>${cmd({ type: 'Acknowledge' }, 'Проводить инспектора', 'primary')}`;
+    if (ask) {
+      const r = p.results[visitShown];
+      const lines = cfg.dialogues.items[r.itemId];
+      const d = b.dialogue;
+      const score = itemScore(st, cfg, r.itemId, true);
+      const reply = (kind: Reply, note: string, cls: string) => `<button class="it-btn it-btn--${cls} it-choice" data-cmd='{"type":"AnswerInspector","reply":"${kind}"}' data-k="rep-${kind}"><span>«${lines[kind]}»<br><small>${cfg.dialogues.replyNames[kind]} · ${note}</small></span></button>`;
+      foot = `<div class="gs-note">Штраф по пункту ${money(r.fine)}. Ваша готовность: ${score} из 100.</div><div class="it-choices">
+        ${reply('admit', `штраф меньше на ${Math.round((1 - d.admitFactor) * 100)}%, без риска`, 'primary')}
+        ${reply('explain', `шанс снять ${percent(replyChance(st, cfg, p, visitShown, 'explain'))}`, 'secondary')}
+        ${reply('argue', `шанс снять ${percent(replyChance(st, cfg, p, visitShown, 'argue'))}, при неудаче штраф ×${String(d.argueFailFactor).replace('.', ',')}`, 'secondary')}
+      </div>`;
+    } else if (done && p.totalFine === 0) foot = cmd({ type: 'Acknowledge' }, 'Проводить инспектора', 'primary');
     else if (done) {
       const bribe = a.bribe;
+      const again = st.inspectorMemory?.[p.inspectorId]?.bribes;
       foot = `<div><b class="loss">Акт: штраф ${money(p.totalFine)}</b>${p.suspensionDays ? ` и приостановка на ${p.suspensionDays} дн.` : ''}</div>
         <div class="it-choices">
-          <button class="it-btn it-btn--primary it-choice" data-cmd='{"type":"ResolveInspection","choice":"accept"}' data-k="acc"><span>Принять и исправить<br><small>повторная проверка через 30 дней</small></span><span class="price"><i class="it-coin"></i>${Math.round(p.totalFine).toLocaleString('ru-RU')}</span></button>
-          <button class="it-btn it-btn--secondary it-choice" data-cmd='{"type":"ResolveInspection","choice":"contest"}' data-k="con"><span>Оспорить через юриста<br><small>шанс отмены ${percent(contestChance(cfg, p.results, p.agency))}</small></span><span class="price"><i class="it-coin"></i>${b.costs.lawyer}</span></button>
-          <button class="it-btn it-btn--danger it-choice" data-cmd='{"type":"ResolveInspection","choice":"bribe"}' data-k="bri"><span>«Договориться»<br><small>${percent(bribe.caughtChance)} – уголовное дело и конец игры</small></span><span class="price"><i class="it-coin"></i>${Math.round(p.totalFine * bribe.costShare).toLocaleString('ru-RU')}</span></button>
+          <button class="it-btn it-btn--primary it-choice" data-cmd='{"type":"ResolveInspection","choice":"accept"}' data-k="acc"><span>Принять и исправить<br><small>повторно придёт тот же инспектор через ${a.reinspectAfterDays} дней</small></span><span class="price"><i class="it-coin"></i>${Math.round(p.totalFine).toLocaleString('ru-RU')}</span></button>
+          <button class="it-btn it-btn--secondary it-choice" data-cmd='{"type":"ResolveInspection","choice":"contest"}' data-k="con"><span>Оспорить через юриста<br><small>шанс отмены ${percent(contestChance(cfg, p.results, p.agency))}</small></span><span class="price"><i class="it-coin"></i>${b.costs.lawyer.toLocaleString('ru-RU')}</span></button>
+          <button class="it-btn it-btn--danger it-choice" data-cmd='{"type":"ResolveInspection","choice":"bribe"}' data-k="bri"><span>«Договориться»<br><small>${percent(bribe.caughtChance)} – уголовное дело и конец игры${again ? ' · он помнит вас и просит больше' : ''}</small></span><span class="price"><i class="it-coin"></i>${Math.round(bribeCost(st, cfg, p)).toLocaleString('ru-RU')}</span></button>
         </div>`;
     }
-    return `<div class="it-panel it-event gs-modal" role="dialog" aria-label="Проверка: ${a.name}">
-      <div class="lbl">${a.fullName} · визит</div>${inspectorCard(p.inspectorId)}<div class="gs-checks">${rows}</div>${foot}</div>`;
+    return `<div class="it-panel it-event gs-modal gs-visit" role="dialog" aria-label="Проверка: ${a.name}">
+      <div class="lbl">${a.fullName} · визит</div>
+      <div class="gs-visit-grid"><div class="gs-sec">${inspectorCard(p.inspectorId)}<div class="gs-bubble" aria-live="polite">${say}</div></div><div class="gs-checks">${rows}</div></div>
+      ${foot}</div>`;
   }
 
   function endHtml(): string {
@@ -683,14 +736,37 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
     // цель партии: 3 месяца подряд в плюсе, нет просрочек, репутация не ниже 4,0
     const lastMonths = [10, 11, 12].map((m) => st.history.filter((r) => r.month === m).reduce((x, r) => x + r.profit, 0));
     const onFeet = st.outcome === 'year' && lastMonths.every((v) => v > 0) && !st.loans.some((l) => l.overdue > 0) && st.tax.lateCount === 0 && st.reputation >= 4;
-    const chronicle = st.feed.filter((f) => f.tone === 'bad').slice(-5).map((f) => `<div class="gs-note">День ${f.day}: ${f.title}</div>`).join('');
-    return `<div class="it-panel it-event gs-modal" role="dialog" aria-label="${title}">
+    const sum = gameSummary(st, cfg);
+    const hist = st.history;
+    const step = Math.max(1, Math.ceil(hist.length / 90));
+    const pts = hist.filter((_, i) => i % step === 0 || i === hist.length - 1);
+    const yearChart = lineChart('end-year', { title: 'Деньги за партию и ваши решения', x: pts.map((r) => r.day), series: [{ name: 'Деньги', color: 'var(--c2)', values: pts.map((r) => r.cash) }], format: short, marks: sum.milestones });
+    const marks = sum.milestones.map((m, i) => `<li class="${m.tone}"><b>${i + 1}</b><span>День ${m.day}: ${m.label}</span></li>`).join('');
+    return `<div class="it-panel it-event gs-modal gs-endcard" role="dialog" aria-label="${title}">
       <div class="ttl">${title}</div><div>${text}</div>
+      ${yearChart}
+      <div class="gs-grid2"><div class="gs-sec"><div class="lbl">Что решило исход</div>${sum.causes.map((c) => `<div class="gs-note gs-cause">${c}</div>`).join('')}${sum.firstNegativeDay ? `<div class="gs-note">Деньги впервые ушли в минус на ${sum.firstNegativeDay}-й день.</div>` : ''}</div>
+      <div class="gs-sec"><div class="lbl">Ваши решения</div><ol class="gs-marks">${marks || '<li><span>Крупных решений не было.</span></li>'}</ol></div></div>
       <table class="gs-table"><tr><td>Деньги на счёте</td><td>${signedMoney(sc.cash)}</td></tr><tr><td>Оборудование (половина цены)</td><td>${signedMoney(sc.equipment)}</td></tr><tr><td>Возврат депозита</td><td>${signedMoney(sc.deposit)}</td></tr><tr><td>Налоговый долг</td><td>${signedMoney(-sc.taxDebt)}</td></tr><tr><td>Кредиты</td><td>${signedMoney(-sc.loans)}</td></tr><tr><td>Стартовый капитал</td><td>${signedMoney(-sc.startCapital)}</td></tr>
       <tr class="total"><td>Очки</td><td class="${sc.total < 0 ? 'loss' : 'money'}">${signedMoney(sc.total)}</td></tr></table>
       <div class="gs-facts">${row('«Кофейня на ногах»', onFeet ? 'да' : 'нет', onFeet ? 'money' : 'loss')}${sc.medal ? row('Медаль', medal[sc.medal]) : ''}${row('Репутация директора', honest)}${row('Репутация кофейни', stars(st.reputation))}${row('Проверок / штрафов', `${st.stats.inspections} / ${money(st.stats.fines)}`)}</div>
-      ${chronicle ? `<div class="lbl">Хроника</div>${chronicle}` : ''}
+      ${feedbackHtml()}
       <button class="it-btn it-btn--primary" data-act="new" data-k="new">Новая партия</button></div>`;
+  }
+
+  /** Отзыв для плейтеста: хранится у игрока, отправляется вручную. */
+  function feedbackHtml(): string {
+    const scale = (key: keyof typeof fb, name: string) => `<div class="it-row"><span class="grow">${name}</span><div class="it-seg gs-fb-seg">${[1, 2, 3, 4, 5].map((n) => `<button class="${fb[key] === n ? 'on' : ''}" data-fb="${key}" data-v="${n}" data-k="fb-${key}-${n}" aria-pressed="${fb[key] === n}">${n}</button>`).join('')}</div></div>`;
+    return `<div class="gs-sec gs-fb"><div class="lbl">Отзыв для автора</div>
+      ${scale('clear', 'Было понятно, что делать')}${scale('fun', 'Было интересно')}${scale('hard', 'Сложность была честной')}
+      <textarea class="st-input" rows="3" data-fb-text data-k="fb-text" placeholder="Что запутало, что понравилось, где бросили бы игру?">${fb.text.replace(/</g, '&lt;')}</textarea>
+      <div class="it-row gs-wrap"><button class="it-btn it-btn--secondary" data-fb-act="copy" data-k="fb-c">${fbCopied ? 'Скопировано' : 'Скопировать отзыв'}</button><button class="it-btn it-btn--secondary" data-fb-act="save" data-k="fb-s">Скачать файлом</button></div>
+      <div class="gs-note">Отзыв никуда не отправляется сам: скопируйте его и пришлите автору.</div></div>`;
+  }
+
+  function feedbackText(): string {
+    const st = s();
+    return JSON.stringify({ ...fb, seed: st.seed, difficulty: st.options.difficulty, location: st.options.location, day: st.day, outcome: st.outcome, cash: st.cash, commands: st.commandLog.length }, null, 1);
   }
 
   function renderModal(): void {
@@ -700,6 +776,10 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
     if (st.finished) {
       modalEl.hidden = false;
       return fill(modalEl, endHtml());
+    }
+    if (feedbackOpen) {
+      modalEl.hidden = false;
+      return fill(modalEl, `<div class="it-panel it-event gs-modal gs-endcard" role="dialog" aria-label="Отзыв">${feedbackHtml()}<button class="it-btn it-btn--ghost" data-fb-act="close" data-k="fb-x">Закрыть</button></div>`);
     }
     modalEl.hidden = !p;
     if (!p) {
@@ -721,13 +801,90 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
       visitShown = 0;
     }
     fill(modalEl, visitHtml(p));
-    if (visitShown < p.results.length) {
+    const waiting = visitShown < p.results.length && p.results[visitShown].violated && p.results[visitShown].fine > 0 && !p.results[visitShown].reply;
+    if (visitShown < p.results.length && !waiting) {
       visitTimer = window.setTimeout(() => {
         visitShown++;
         audio.play(p.results[visitShown - 1]?.violated ? 'stamp' : 'tick');
         if (alive) renderModal();
       }, 900);
     }
+  }
+
+  function applyTheme(): void {
+    const night = settings.theme === 'night' || (settings.theme === 'auto' && nightFactor(game.clock.hour) > 0.55);
+    const next = night ? 'night' : 'day';
+    if (next === themeApplied) return;
+    themeApplied = next;
+    if (night) screen.dataset.theme = 'night';
+    else delete screen.dataset.theme;
+  }
+
+  // ---------- обучение ----------
+  function tutorialDone(until: string): boolean {
+    if (until === 'closed') return !windowOpen;
+    if (until === 'flows') return flowsOn;
+    if (until === 'running') return game.clock.speed > 0;
+    return windowOpen && tab === until.slice(4);
+  }
+
+  function nextTutorial(): void {
+    tutStep++;
+    if (tutStep >= tutorial.length) endTutorial();
+    else renderTutorial();
+  }
+
+  function endTutorial(): void {
+    tutStep = -1;
+    settings.tutorialDone = true;
+    saveSettings();
+    tutEl.hidden = true;
+    spotEl.hidden = true;
+  }
+
+  function renderTutorial(): void {
+    const t = tutorial[tutStep];
+    tutEl.hidden = false;
+    tutEl.innerHTML = `<div class="lbl">Обучение · ${tutStep + 1} из ${tutorial.length}</div><div class="ttl">${t.title}</div><div>${t.text}</div>
+      <div class="it-row"><button class="it-btn it-btn--ghost" data-tut-skip>Пропустить</button><span class="grow"></span>${t.until ? '<span class="gs-note">Сделайте это, чтобы продолжить</span>' : '<button class="it-btn it-btn--primary" data-tut-next>Дальше</button>'}</div>`;
+  }
+
+  let tutRendered = -1;
+  /** Подсветка идёт за целью каждый кадр: окно и камера могут двигаться. */
+  function updateTutorial(): void {
+    if (tutStep < 0) return;
+    if (game.blocked) {
+      tutEl.hidden = true;
+      spotEl.hidden = true;
+      tutRendered = -1;
+      return;
+    }
+    if (tutRendered !== tutStep) {
+      tutRendered = tutStep;
+      renderTutorial();
+      if (tutStep < tutorial.length - 1) game.clock.pause();
+    }
+    const t = tutorial[tutStep];
+    if (t.until && tutorialDone(t.until)) return nextTutorial();
+    const target = screen.querySelector(t.target);
+    const box = target?.getBoundingClientRect();
+    const host = screen.getBoundingClientRect();
+    if (!box || !box.width) {
+      spotEl.hidden = true;
+      return;
+    }
+    spotEl.hidden = false;
+    const pad = 6;
+    spotEl.style.left = `${box.left - host.left - pad}px`;
+    spotEl.style.top = `${box.top - host.top - pad}px`;
+    spotEl.style.width = `${box.width + pad * 2}px`;
+    spotEl.style.height = `${box.height + pad * 2}px`;
+    const card = tutEl.getBoundingClientRect();
+    const below = box.bottom - host.top + 16;
+    const top = below + card.height < host.height - 12 ? below : Math.max(12, box.top - host.top - card.height - 16);
+    const left = Math.max(12, Math.min(host.width - card.width - 12, box.left - host.left + box.width / 2 - card.width / 2));
+    tutEl.style.left = `${left}px`;
+    tutEl.style.top = `${top}px`;
   }
 
   function renderAll(): void {
@@ -742,6 +899,7 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
   // ---------- ввод ----------
   function setSpeed(v: Speed): void {
     if (game.blocked) return;
+    if (tutStep >= 0 && tutStep < tutorial.length - 1) return;
     game.clock.setSpeed(v);
     renderHud();
   }
@@ -752,6 +910,8 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
       settings[t.dataset.vol as 'music' | 'sfx'] = Number(t.value) / 100;
       audio.applyVolumes();
       saveSettings();
+    } else if (t.dataset.fbText !== undefined) {
+      fb.text = t.value;
     } else if (t.dataset.hints !== undefined) {
       settings.hints = t.checked;
       saveSettings();
@@ -762,6 +922,12 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
 
   const onClick = (e: MouseEvent): void => {
     audio.unlock();
+    const link = (e.target as Element).closest<HTMLElement>('[data-goto-tab]');
+    if (link) {
+      tab = link.dataset.gotoTab as Tab;
+      audio.play('tab');
+      return renderAll();
+    }
     const t = (e.target as Element).closest<HTMLElement>('button');
     if (!t || t.hasAttribute('disabled')) return;
     const d = t.dataset;
@@ -771,7 +937,37 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
     if (d.act === 'csv') return hooks.exportCsv();
     if (d.act === 'new') return hooks.newGame();
     if (d.act === 'menu') return hooks.menu();
-    if (d.flows !== undefined) flowsOn = !flowsOn;
+    if (d.tutNext !== undefined) {
+      nextTutorial();
+      return;
+    }
+    if (d.tutSkip !== undefined) {
+      endTutorial();
+      return;
+    }
+    if (d.fbAct === 'copy') {
+      void navigator.clipboard?.writeText(feedbackText());
+      fbCopied = true;
+    } else if (d.fbAct === 'save') {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([feedbackText()], { type: 'application/json' }));
+      a.download = `iso-tycoon-feedback-${s().seed}.json`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    } else if (d.fbAct === 'open') {
+      feedbackOpen = true;
+      menuOpen = false;
+    } else if (d.fbAct === 'close') feedbackOpen = false;
+    else if (d.fb) fb[d.fb as 'clear' | 'fun' | 'hard'] = Number(d.v);
+    else if (d.themeSet) {
+      settings.theme = d.themeSet as typeof settings.theme;
+      saveSettings();
+    } else if (d.tut !== undefined) {
+      tutStep = 0;
+      menuOpen = false;
+      windowOpen = false;
+      game.clock.pause();
+    } else if (d.flows !== undefined) flowsOn = !flowsOn;
     else if (d.menu !== undefined) menuOpen = !menuOpen;
     else if (d.close !== undefined) windowOpen = false;
     else if (d.range) chartRange = Number(d.range);
@@ -818,6 +1014,7 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
     if (e.code === 'Space') {
       if ((e.target as Element).closest?.('button')) return;
       e.preventDefault();
+      if (tutStep >= 0 && tutStep < tutorial.length - 1) return;
       game.clock.togglePause();
       renderHud();
     } else if (e.key === '1' || e.key === '2' || e.key === '3') setSpeed(Number(e.key) as Speed);
@@ -844,6 +1041,8 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
       renderAll();
     } else renderTime();
     scene.frame(dt, game.blocked ? 0 : game.clock.speed, game.clock.hour);
+    applyTheme();
+    updateTutorial();
     audio.setNight(nightFactor(game.clock.hour) > 0.5);
     requestAnimationFrame(frame);
   }

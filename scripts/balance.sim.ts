@@ -1,3 +1,4 @@
+import { nextQuestion } from '../src/core/inspections';
 /**
  * Прогон партий ботами для проверки баланса: npm run balance (GAMES=1000 по умолчанию).
  * Ориентиры на «Реализме»: честный доживает в 60–75%, серый зарабатывает больше, но проигрывает чаще,
@@ -22,8 +23,15 @@ function closePending(s: GameState, choose: (fine: number) => Choice, option: (n
     const p = s.pending[0];
     if (p.kind === 'event') {
       const n = cfg.events.find((e) => e.id === p.eventId)!.options.length;
-      applyCommand(s, { type: 'ChooseEventOption', index: option(n) });
-    } else if (p.kind === 'inspectionVisit' && p.totalFine > 0) applyCommand(s, { type: 'ResolveInspection', choice: choose(p.totalFine) });
+      // разговор о деньгах: ни один разумный директор не поднимает зарплату каждый месяц
+      const index = p.eventId === 'raise_ask' ? (s.cash > 6000 ? 0 : 2) : p.eventId === 'promise_due' ? (s.cash > 6000 ? 0 : 1) : option(n);
+      applyCommand(s, { type: 'ChooseEventOption', index });
+    } else if (p.kind === 'inspectionVisit' && p.totalFine > 0) {
+      // без «переговоров» проверка стала бы дороже, чем для игрока: боты всегда признают нарушения
+      while (nextQuestion(p) >= 0) applyCommand(s, { type: 'AnswerInspector', reply: 'admit' });
+      if (p.totalFine > 0) applyCommand(s, { type: 'ResolveInspection', choice: choose(p.totalFine) });
+      else applyCommand(s, { type: 'Acknowledge' });
+    }
     else applyCommand(s, { type: 'Acknowledge' });
   }
 }
