@@ -227,3 +227,10 @@ html, body { margin: 0; height: 100%; background: var(--surface); }
 @keyframes barista { to { transform: translateX(46px) translateY(-23px); } }
 @media (prefers-reduced-motion: reduce) { .barista-work { animation: none; } }
 .gs-branch-loc { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; }
+
+/* режим разработчика */
+.gs-dev-btn { font-size: 12px; font-weight: 700; letter-spacing: 0.04em; padding: 4px 10px; }
+.gs-dev-btn.on { background: var(--coin); }
+.gs-scn { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; padding: 6px 10px; }
+.gs-scn span { font-size: 12px; font-weight: 400; color: var(--ink-muted); }
+.gs-scn:disabled { opacity: 0.45; }

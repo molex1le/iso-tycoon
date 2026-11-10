@@ -15,12 +15,16 @@ import { clockTime, money, monthName, percent, price, signedMoney } from './form
 import { audio, audioControlsHtml, type Sfx } from './audio';
 import { bindCharts, clearCharts, lineChart } from './charts';
 import { nightFactor, SceneView } from './scene/sceneView';
-import { settings, saveSettings } from './settings';
+import { devMode, settings, saveSettings } from './settings';
+import scenarioData from '../data/devScenarios.json';
 import tips from '../data/tips.json';
 import tutorial from '../data/tutorial.json';
 import { HallLife, hallSize, interiorSvg } from './scene/interior';
 import { branchOffer } from '../core/branch';
-import { weatherOf } from '../core/weather';
+import { weatherOf, type WeatherId } from '../core/weather';
+
+interface DevScenario { id: string; title: string; note: string; day: number; reputation?: number; cashAtLeast?: number; cashTo?: number; rival?: boolean }
+const devScenarios = scenarioData as DevScenario[];
 import { flowSources } from '../core/shop';
 import type { LocationKey } from './scene/models';
 import { advise } from '../core/advisor';
@@ -182,6 +186,7 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
       <div class="spacer"></div>
       <div class="it-date"><div class="lbl">${seasonOf(month, b).name} · день ${day} из ${gameLength(st, b)}</div><div style="font-weight:600" data-tip="${weatherTip()}">${dayOfMonth(day, b)} · ${monthName(month)} · ${b.weather.kinds[weatherOf(st)].name.toLowerCase()} · <span class="num" data-ref="time"></span></div></div>
       <div class="it-speed" role="group" aria-label="Скорость">${btn(0, '❚❚', 'Пауза')}${btn(1, '1×')}${btn(2, '2×')}${btn(3, '3×')}</div>
+      ${devMode ? `<button class="it-btn it-btn--secondary gs-dev-btn ${debugOpen ? 'on' : ''}" data-dbg-toggle data-k="dev" aria-pressed="${debugOpen}">DEV</button>` : ''}
       <button class="it-btn it-btn--secondary it-btn--icon" data-menu data-k="menu" aria-label="Меню">☰</button>`);
     shownTime = '';
   }
@@ -646,16 +651,25 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
       <div class="it-row"><button class="it-btn it-btn--secondary" data-act="download" data-k="dl">Скачать сейв</button><button class="it-btn it-btn--secondary" data-act="csv" data-k="csv">Телеметрия CSV</button></div>
       <div class="it-row"><button class="it-btn it-btn--secondary" data-fb-act="open" data-k="fb-o">Оставить отзыв</button><button class="it-btn it-btn--secondary" data-tut="1" data-k="tut">Обучение заново</button></div>
       <button class="it-btn it-btn--secondary" data-act="menu" data-k="main">Главное меню</button>
-      <div class="gs-note">Игра сохраняется сама каждый день. Пробел – пауза, 1 / 2 / 3 – скорость, колесо – зум, Esc – закрыть окно, F2 – отладка.</div>`
+      <div class="gs-note">Игра сохраняется сама каждый день. Пробел – пауза, 1 / 2 / 3 – скорость, колесо – зум, Esc – закрыть окно${devMode ? ', F2 или кнопка DEV – отладка' : ''}.</div>`
       : '';
-    const dbg = debugOpen
-      ? `<div class="lbl">Отладка · сид ${st.seed}</div>
-      <div class="it-row">${cmd({ type: 'DebugAddMoney', amount: 1000 }, '+ $1 000')}</div>
+    const dbg = debugOpen && devMode
+      ? `<div class="lbl">Режим разработчика · сид ${st.seed} · день ${st.day}</div>
+      <div class="it-row">${cmd({ type: 'DebugAddMoney', amount: 1000 }, '+ $1 000')}${cmd({ type: 'DebugAddMoney', amount: 10000 }, '+ $10 000')}${cmd({ type: 'DebugAddMoney', amount: -5000 }, '− $5 000')}</div>
+      <div class="lbl">Репутация: ${st.reputation.toFixed(1)}</div>
+      <div class="it-row">${[2, 3, 4, 5].map((v) => cmd({ type: 'DebugReputation', value: v }, v + ' ★', 'secondary gs-mini')).join('')}</div>
+      <div class="lbl">Погода</div>
+      <div class="it-row">${Object.entries(b.weather.kinds).map(([id, k]) => cmd({ type: 'DebugWeather', weather: id as WeatherId }, k.name, 'secondary gs-mini')).join('')}</div>
+      <div class="lbl">Проверка сейчас</div>
       <div class="it-row">${AGENCIES.map((a) => cmd({ type: 'DebugInspection', agency: a }, cfg.inspections[a].name, 'secondary gs-mini')).join('')}</div>
+      <div class="lbl">Событие</div>
       <select class="gs-select" data-ref="dbg-event" aria-label="Событие">${cfg.events.map((e) => `<option value="${e.id}">${e.title}</option>`).join('')}</select>
-      <button class="it-btn it-btn--secondary" data-dbg-event data-k="dbgev">Запустить событие</button>
-      <div class="it-row"><button class="it-btn it-btn--secondary" data-skip="1" data-k="s1">+1 дн.</button><button class="it-btn it-btn--secondary" data-skip="7" data-k="s7">+7</button><button class="it-btn it-btn--secondary" data-skip="30" data-k="s30">+30</button></div>
-      <div class="gs-note">Команд в логе: ${st.commandLog.length} · дней в телеметрии: ${st.history.length}</div>`
+      <div class="it-row"><button class="it-btn it-btn--secondary" data-dbg-event data-k="dbgev">Запустить событие</button>${cmd({ type: 'DebugRival' }, 'Новый конкурент')}</div>
+      <div class="lbl">Перемотка (сама закрывает события и проверки)</div>
+      <div class="it-row"><button class="it-btn it-btn--secondary" data-skip="1" data-k="s1">+1 дн.</button><button class="it-btn it-btn--secondary" data-skip="7" data-k="s7">+7</button><button class="it-btn it-btn--secondary" data-skip="30" data-k="s30">+30</button><button class="it-btn it-btn--secondary" data-skip="90" data-k="s90">+90</button></div>
+      <div class="lbl">Готовые сценарии</div>
+      ${devScenarios.map((x) => `<button class="it-btn it-btn--secondary gs-scn" data-scenario="${x.id}" data-k="scn-${x.id}" ${st.day > x.day ? 'disabled' : ''}><b>${x.title}</b><span>${x.note}</span></button>`).join('')}
+      <div class="gs-note">Сценарий перематывает текущую партию до нужного дня. Если день уже позже – начните новую игру. Команд в логе: ${st.commandLog.length} · дней в телеметрии: ${st.history.length}</div>`
       : '';
     fill(menuEl, main + dbg);
   }
@@ -1035,14 +1049,30 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
         windowOpen = true;
         selected = null;
       }
-    } else if (d.skip) game.skipDays(Number(d.skip));
+    } else if (d.skip) game.skipTo(s().day + Number(d.skip));
+    else if (d.dbgToggle !== undefined) debugOpen = !debugOpen;
+    else if (d.scenario) runScenario(d.scenario);
     hooks.save();
     renderAll();
   };
   screen.addEventListener('click', onClick);
 
+  /** Готовый тестовый случай: перемотка до дня и подстройка денег, репутации, конкурентов. */
+  function runScenario(id: string): void {
+    const x = devScenarios.find((v) => v.id === id);
+    if (!x) return;
+    game.skipTo(x.day);
+    const st = s();
+    if (x.reputation !== undefined) game.dispatch({ type: 'DebugReputation', value: x.reputation });
+    if (x.cashAtLeast !== undefined && st.cash < x.cashAtLeast) game.dispatch({ type: 'DebugAddMoney', amount: x.cashAtLeast - st.cash });
+    if (x.cashTo !== undefined) game.dispatch({ type: 'DebugAddMoney', amount: x.cashTo - st.cash });
+    if (x.rival) game.dispatch({ type: 'DebugRival' });
+    game.clock.pause();
+  }
+
   const onKey = (e: KeyboardEvent): void => {
     if (e.key === 'F2') {
+      if (!devMode) return;
       e.preventDefault();
       debugOpen = !debugOpen;
       return renderMenu();

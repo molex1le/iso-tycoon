@@ -21,6 +21,9 @@ function load(): Settings {
 
 export const settings: Settings = load();
 
+/** Режим разработчика включается адресом с ?dev. Без него отладки в игре нет совсем. */
+export const devMode: boolean = typeof location !== 'undefined' && new URLSearchParams(location.search).has('dev');
+
 export function saveSettings(): void {
   try {
     localStorage.setItem(KEY, JSON.stringify(settings));

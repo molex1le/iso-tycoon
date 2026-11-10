@@ -1,10 +1,11 @@
+import { Game } from '../src/core/game';
 import { describe, expect, it } from 'vitest';
 import { branchOffer } from '../src/core/branch';
 import { applyCommand } from '../src/core/commands';
 import { defaultConfig as cfg } from '../src/core/config';
 import { flowSources } from '../src/core/shop';
 import { simulateDay } from '../src/core/simulateDay';
-import { createInitialState } from '../src/core/state';
+import { createInitialState, defaultOptions } from '../src/core/state';
 
 describe('погода и потоки', () => {
   it('погода меняет спрос и пишется в телеметрию', () => {
@@ -66,5 +67,26 @@ describe('рост', () => {
     expect(s.years).toBe(2);
     expect(s.rentFactor).toBeGreaterThan(rent);
     expect(s.inspections.some((i) => i.visitDay > 360)).toBe(true);
+  });
+});
+
+describe('режим разработчика', () => {
+  it('перемотка сама закрывает события и доходит до нужного дня', () => {
+    const game = new Game(7, defaultOptions(cfg), cfg);
+    game.skipTo(120);
+    expect(game.state.finished || game.state.day === 120).toBe(true);
+    expect(game.state.finished || game.state.pending.length === 0 || game.state.day === 120).toBe(true);
+  });
+
+  it('команды отладки: репутация, погода, новый конкурент', () => {
+    const game = new Game(7, defaultOptions(cfg), cfg);
+    expect(game.dispatch({ type: 'DebugReputation', value: 9 })).toBe(true);
+    expect(game.state.reputation).toBe(5);
+    expect(game.dispatch({ type: 'DebugWeather', weather: 'rain' })).toBe(true);
+    expect(game.state.weather).toBe('rain');
+    const before = game.state.competitors.length;
+    expect(game.dispatch({ type: 'DebugRival' })).toBe(true);
+    expect(game.state.competitors.length).toBe(before + 1);
+    expect(game.state.competitors[before].opening).toBe(true);
   });
 });

@@ -8,6 +8,7 @@ import { fileDeclaration, payTax, spend } from './finance';
 import { answerInspector, checklist, itemScore, resolveVisit, triggerUnplanned, type Reply } from './inspections';
 import { repayLoan, restructure, takeLoan } from './loans';
 import { nextRandom } from './rng';
+import type { WeatherId } from './weather';
 import { simulateDay } from './simulateDay';
 import { createInitialState, type GameState, type LoggedCommand, type NewGameOptions } from './state';
 
@@ -46,7 +47,10 @@ export type Command =
   | { type: 'ChooseEventOption'; index: number }
   | { type: 'DebugAddMoney'; amount: number }
   | { type: 'DebugInspection'; agency?: AgencyId }
-  | { type: 'DebugEvent'; eventId: string };
+  | { type: 'DebugEvent'; eventId: string }
+  | { type: 'DebugReputation'; value: number }
+  | { type: 'DebugWeather'; weather: WeatherId }
+  | { type: 'DebugRival' };
 
 /** Ближайшая объявленная проверка, к которой можно готовиться. */
 export function announcedInspection(state: GameState, agency?: AgencyId) {
@@ -245,6 +249,24 @@ function run(state: GameState, command: Command, cfg: GameConfig): boolean {
       if (!e) return false;
       const target = state.employees[0];
       state.pending.push({ kind: 'event', eventId: e.id, targetId: target?.id ?? null, vars: { name: target?.name ?? '', review: 'Тестовый отзыв.' } });
+      return true;
+    }
+    case 'DebugReputation': {
+      if (!Number.isFinite(command.value)) return false;
+      state.reputation = clamp(command.value, 1, 5);
+      return true;
+    }
+    case 'DebugWeather': {
+      if (!(command.weather in cfg.balance.weather.kinds)) return false;
+      state.weather = command.weather;
+      return true;
+    }
+    case 'DebugRival': {
+      const n = cfg.balance.competition.newRivals;
+      const next = n.list.find((x) => !state.competitors.some((r) => r.id === x.id));
+      if (!next) return false;
+      state.competitors.push({ ...next, lowShareDays: 0, closedUntilDay: state.day + n.buildDays, opening: true });
+      say(state, cfg, 'rivalBuilding', 'warn', { name: next.name, n: n.buildDays });
       return true;
     }
   }
