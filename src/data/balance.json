@@ -118,7 +118,8 @@
       "unplannedMultiplier": 0.5,
       "unplannedNoticeDays": 3,
       "formalists": false,
-      "text": "Больше денег, проверки мягче, формалистов нет"
+      "text": "Больше денег, проверки мягче, формалистов нет",
+      "advisor": true
     },
     "realism": {
       "name": "Реализм",
@@ -126,7 +127,8 @@
       "unplannedMultiplier": 1,
       "unplannedNoticeDays": 1,
       "formalists": true,
-      "text": "Как в жизни: денег впритык"
+      "text": "Как в жизни: денег впритык",
+      "advisor": false
     },
     "survival": {
       "name": "Выживание",
@@ -134,30 +136,93 @@
       "unplannedMultiplier": 1.5,
       "unplannedNoticeDays": 0,
       "formalists": true,
-      "text": "Мало денег, внезапные проверки без уведомления"
+      "text": "Мало денег, внезапные проверки без уведомления",
+      "advisor": false
     }
   },
   "locations": {
     "suburb": {
       "name": "Спальный район",
       "rent": 1200,
-      "footTraffic": 740,
+      "footTraffic": 755,
       "seats": 10,
-      "defectChance": 0.4
+      "defectChance": 0.4,
+      "sources": [
+        {
+          "id": "yards",
+          "name": "Дворы",
+          "share": 0.3,
+          "season": {
+            "winter": 0.85,
+            "spring": 1.05,
+            "summer": 1.15,
+            "autumn": 0.95
+          }
+        },
+        {
+          "id": "school",
+          "name": "Школа",
+          "share": 0.2,
+          "season": {
+            "winter": 1.15,
+            "spring": 1.1,
+            "summer": 0.35,
+            "autumn": 1.4
+          }
+        }
+      ]
     },
     "metro": {
       "name": "У метро",
       "rent": 2400,
-      "footTraffic": 900,
+      "footTraffic": 918,
       "seats": 6,
-      "defectChance": 0.2
+      "defectChance": 0.2,
+      "sources": [
+        {
+          "id": "metro",
+          "name": "Метро",
+          "share": 0.45,
+          "season": {}
+        },
+        {
+          "id": "stop",
+          "name": "Остановка",
+          "share": 0.15,
+          "season": {}
+        }
+      ]
     },
     "center": {
       "name": "Центр",
       "rent": 3800,
-      "footTraffic": 1250,
+      "footTraffic": 1275,
       "seats": 14,
-      "defectChance": 0.1
+      "defectChance": 0.1,
+      "sources": [
+        {
+          "id": "mall",
+          "name": "Торговый центр",
+          "share": 0.35,
+          "season": {
+            "winter": 1.2,
+            "spring": 1,
+            "summer": 0.8,
+            "autumn": 1
+          }
+        },
+        {
+          "id": "office",
+          "name": "Бизнес-центр",
+          "share": 0.3,
+          "season": {
+            "winter": 1.05,
+            "spring": 1.05,
+            "summer": 0.8,
+            "autumn": 1.1
+          }
+        }
+      ]
     }
   },
   "equipment": {
@@ -240,14 +305,16 @@
       "name": "КофеМаркет",
       "quality": 0.8,
       "avgCheck": 2.4,
-      "reputation": 3.0
+      "reputation": 3.0,
+      "kind": "chain"
     },
     {
       "id": "zerna",
       "name": "Зёрна",
       "quality": 1.3,
       "avgCheck": 3.8,
-      "reputation": 3.0
+      "reputation": 3.0,
+      "kind": "craft"
     }
   ],
   "startPreset": {
@@ -548,7 +615,41 @@
     "denounceChance": 0.15,
     "closeBelow": 0.1,
     "closeAfterDays": 60,
-    "closedDays": 30
+    "closedDays": 30,
+    "newRivals": {
+      "minDay": 180,
+      "weeklyChance": {
+        "training": 0.008,
+        "realism": 0.015,
+        "survival": 0.025
+      },
+      "buildDays": 21,
+      "list": [
+        {
+          "id": "bodrost",
+          "name": "Бодрость",
+          "quality": 0.85,
+          "avgCheck": 2.9,
+          "reputation": 2.8,
+          "kind": "chain"
+        },
+        {
+          "id": "lisa",
+          "name": "Лиса и кофе",
+          "quality": 1.15,
+          "avgCheck": 3.6,
+          "reputation": 3.2,
+          "kind": "craft"
+        }
+      ],
+      "strongShare": 0.2,
+      "strongFactor": 2,
+      "max": {
+        "training": 1,
+        "realism": 1,
+        "survival": 2
+      }
+    }
   },
   "eventRules": {
     "minGapDays": 8,
@@ -569,7 +670,7 @@
         "argue": 0.25
       }
     },
-    "admitFactor": 0.75,
+    "admitFactor": 0.9,
     "argueFailFactor": 1.3,
     "seriousFactor": 0.5,
     "serious": [
@@ -610,5 +711,61 @@
         "text": "Работает ровно и ценит хорошее отношение."
       }
     ]
+  },
+  "weather": {
+    "kinds": {
+      "clear": {
+        "name": "Ясно",
+        "demand": 1.08
+      },
+      "rain": {
+        "name": "Дождь",
+        "demand": 0.85
+      },
+      "snow": {
+        "name": "Снегопад",
+        "demand": 0.88
+      },
+      "heat": {
+        "name": "Жара",
+        "demand": 0.92
+      }
+    },
+    "chances": {
+      "winter": {
+        "snow": 0.35,
+        "rain": 0.05
+      },
+      "spring": {
+        "rain": 0.3
+      },
+      "summer": {
+        "rain": 0.15,
+        "heat": 0.25
+      },
+      "autumn": {
+        "rain": 0.4
+      }
+    }
+  },
+  "branch": {
+    "minDay": 90,
+    "minReputation": 3.5,
+    "repair": 3000,
+    "equipment": 5000,
+    "depositMonths": 2,
+    "managerSalary": 1100,
+    "staffMonthly": 2400,
+    "utilities": 250,
+    "cogsShare": 0.3,
+    "efficiency": 0.85,
+    "capacity": 260,
+    "startAwareness": 0.3,
+    "awarenessGrowth": 0.012,
+    "closeRefundShare": 0.3,
+    "newManagerCost": 400
+  },
+  "years": {
+    "rentGrowth": 1.08
   }
 }

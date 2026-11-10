@@ -55,6 +55,7 @@ function conditionOk(state: GameState, cfg: GameConfig, e: EventDef): boolean {
   if (w.repBelow !== undefined && state.reputation >= w.repBelow) return false;
   if (w.announced && !state.inspections.some((i) => i.noticeDay <= state.day)) return false;
   if (w.lateWriteOff && !state.lateWriteOff) return false;
+  if (w.branch && !state.branch) return false;
   if (w.shareAbove === 'dirty' && demandView(state, cfg).share < b.competition.dirtyFrom[state.options.difficulty]) return false;
   return true;
 }
@@ -122,6 +123,8 @@ function applyFx(state: GameState, cfg: GameConfig, fx: EventFx, target: Employe
     const i = state.inspections.find((x) => x.noticeDay <= day);
     if (i) i.visitDay += 30;
   }
+  if (fx.branchManager && state.branch) state.branch.efficiency = cfg.balance.branch.efficiency;
+  if (fx.branchEfficiency && state.branch) state.branch.efficiency = clamp(round2(state.branch.efficiency + fx.branchEfficiency), 0.3, 1);
   if (fx.inspect) triggerUnplanned(state, cfg, fx.inspect, 'Жалоба клиента');
   if (fx.retailMilk) {
     const m = cfg.materials.find((x) => x.id === 'milk')!;

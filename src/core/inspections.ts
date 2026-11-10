@@ -1,4 +1,4 @@
-import { AGENCIES, clamp, round2, totalDays, type AgencyId, type ChecklistItem, type GameConfig, type Inspector } from './config';
+import { AGENCIES, clamp, gameLength, round2, type AgencyId, type ChecklistItem, type GameConfig, type Inspector } from './config';
 import { say, usd } from './feed';
 import { spend } from './finance';
 import { nextRandom } from './rng';
@@ -245,7 +245,7 @@ function applyAct(state: GameState, cfg: GameConfig, visit: Visit): void {
     state.offbookTotal = 0;
   }
   const visitDay = state.day + a.reinspectAfterDays;
-  if (visitDay <= totalDays(cfg.balance)) {
+  if (visitDay <= gameLength(state, cfg.balance)) {
     scheduleInspection(state, cfg, visit.agency, 'repeat', visitDay, a.noticeDays, a.reinspectFineMultiplier, 'Проверка исполнения предписания');
   }
 }
@@ -293,7 +293,8 @@ export function answerInspector(state: GameState, cfg: GameConfig, reply: Reply)
   const serious = (d.serious as string[]).includes(r.itemId);
   r.reply = reply;
   if (reply === 'admit') {
-    r.fine = round2(r.fine * d.admitFactor);
+    // на повторной проверке обещаний уже не принимают
+    r.fine = round2(r.fine * (visit.reason === 'repeat' ? 1 : d.admitFactor));
     r.replyLine = 'admit';
     memory.admits++;
   } else {

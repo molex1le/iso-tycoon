@@ -1,3 +1,4 @@
+import type { Branch } from './branch';
 import type { Command } from './commands';
 import {
   AGENCIES,
@@ -26,6 +27,9 @@ export interface Competitor {
   avgCheck: number;
   reputation: number;
   lowShareDays: number;
+  /** строится: откроется в closedUntilDay */
+  opening?: boolean;
+  kind?: string;
   /** закрыт до этого дня включительно (0 – работает) */
   closedUntilDay: number;
 }
@@ -165,6 +169,11 @@ export interface DayRecord {
   reputation: number;
   cleanliness: number;
   sold: Record<string, number>;
+  /** погода дня */
+  weather?: string;
+  /** итог дня филиала */
+  branchProfit?: number;
+  branchRevenue?: number;
 }
 
 export interface LoggedCommand {
@@ -310,6 +319,14 @@ export interface GameState {
   feed: FeedEntry[];
   prices: Record<string, number>;
   competitors: Competitor[];
+  /** погода на день state.day */
+  weather?: string;
+  /** вторая точка под управляющим */
+  branch?: Branch | null;
+  /** сколько лет в партии: после первого можно играть дальше */
+  years?: number;
+  /** очки по итогам каждого прожитого года */
+  yearScores?: number[];
   /** память инспекторов по их id */
   inspectorMemory?: Record<string, InspectorMemory>;
   /** кто последним проверял каждое ведомство */

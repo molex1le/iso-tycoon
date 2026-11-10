@@ -1,6 +1,8 @@
 import { dayOfMonth, monthOf, seasonOf } from './calendar';
 import { competitorsTurn } from './competitors';
-import { clamp, defaultConfig, round2, totalDays, type GameConfig } from './config';
+import { branchDay } from './branch';
+import { clamp, defaultConfig, gameLength, round2, type GameConfig } from './config';
+import { rollWeather, weatherOf } from './weather';
 import { rollEvents, writeReview } from './events';
 import { say, usd } from './feed';
 import { dailyFixed, payMonthEnd, processTaxes } from './finance';
@@ -193,6 +195,7 @@ export function simulateDay(state: GameState, cfg: GameConfig = defaultConfig): 
   processTaxes(state, cfg, random);
   processLoans(state, cfg);
   competitorsTurn(state, cfg, view.share, view.rivalShares);
+  const branchProfit = branchDay(state, cfg);
 
   // ---------- конец игры ----------
   if (state.cash < 0) {
@@ -224,6 +227,9 @@ export function simulateDay(state: GameState, cfg: GameConfig = defaultConfig): 
     reputation: state.reputation,
     cleanliness: state.cleanliness,
     sold,
+    weather: weatherOf(state),
+    branchProfit: state.branch ? branchProfit : undefined,
+    branchRevenue: state.branch ? state.branch.lastRevenue : undefined,
   };
   state.history.push(record);
   state.ledger = {};
@@ -233,10 +239,11 @@ export function simulateDay(state: GameState, cfg: GameConfig = defaultConfig): 
     state.negativeDays > b.gameOver.negativeHardLimit || (state.negativeDays > b.gameOver.negativeDaysLimit && !rescueAvailable(state, cfg));
   if (bankrupt) finish(state, 'bankrupt');
   else if (state.suspensionDaysTotal > b.gameOver.suspensionDaysLimit) finish(state, 'closed');
-  else if (state.day > totalDays(b)) finish(state, 'year');
+  else if (state.day > gameLength(state, b)) finish(state, 'year');
 
   if (!state.finished) {
     // ---------- утро нового дня: то, что требует решения игрока ----------
+    rollWeather(state, cfg);
     if (monthEnd) state.pending.push({ kind: 'monthReport', month });
     rollUnplanned(state, cfg);
     morningInspections(state, cfg);

@@ -7,11 +7,102 @@ function person(x: number, y: number, body: string, extra = ''): string {
   return `<g class="person" transform="translate(${x.toFixed(1)},${y.toFixed(1)}) scale(2.1)"><ellipse class="shadow" cx="0" cy="0" rx="4.5" ry="2"/><rect class="body ${body}" x="-2.6" y="-11" width="5.2" height="9" rx="2"/><circle class="head" cx="0" cy="-13.4" r="2.7"/>${extra}</g>`;
 }
 
+/** Размер зала: зависит от числа мест в помещении. */
+export function hallSize(st: GameState, cfg: GameConfig): { w: number; d: number } {
+  const seats = cfg.balance.locations[st.options.location].seats;
+  return { w: seats >= 14 ? 11 : seats >= 10 ? 9 : 8, d: 7 };
+}
+
+type P = [number, number];
+interface Guest {
+  node: SVGGElement;
+  pts: P[];
+  seg: number;
+  t: number;
+  wait: number;
+  cup: boolean;
+}
+
+/**
+ * Жизнь в зале: гости заходят, ждут у кассы и уходят со стаканом.
+ * Слой переживает перерисовку зала – его просто переносят в новый svg.
+ */
+export class HallLife {
+  private svg: SVGSVGElement | null = null;
+  private layer: SVGGElement | null = null;
+  private pen: Pen | null = null;
+  private guests: Guest[] = [];
+  private debt = 0;
+  private w = 8;
+  private d = 7;
+
+  attach(svg: SVGSVGElement, w: number, d: number): void {
+    if (svg === this.svg) return;
+    this.svg = svg;
+    if (w !== this.w || d !== this.d) this.guests = [];
+    this.w = w;
+    this.d = d;
+    this.layer ??= svgEl('g', { class: 'life' }) as SVGGElement;
+    for (const g of this.guests) if (!g.node.parentNode) this.layer.appendChild(g.node);
+    svg.appendChild(this.layer);
+    this.pen = new Pen(this.layer, d * 32 + 30, 112);
+  }
+
+  /** dt – секунды, speed – скорость игры, perDay – сколько гостей вчера. */
+  frame(dt: number, speed: number, perDay: number, open: boolean): void {
+    if (!this.pen || !this.layer || speed === 0) return;
+    const step = dt * speed;
+    // день длится 24 с: за смену видно примерно каждого пятого гостя
+    this.debt += open ? step * Math.min(0.9, perDay / 120) : 0;
+    while (this.debt >= 1 && this.guests.length < 9) {
+      this.debt--;
+      const door: P = [this.w - 1.25, this.d + 0.3];
+      const slot = 4.2 + (this.guests.length % 3) * 0.45;
+      const node = svgEl('g', { class: 'person' }, this.layer) as SVGGElement;
+      node.innerHTML = person(0, 0, `pc${Math.floor(Math.random() * 6)}`).replace(/^<g class="person"[^>]*>|<\/g>$/g, '');
+      this.guests.push({ node, pts: [door, [this.w - 1.25, 2.75], [slot, 2.6]], seg: 0, t: 0, wait: 1.4 + Math.random(), cup: false });
+    }
+    this.debt = Math.min(this.debt, 2);
+    const alive: Guest[] = [];
+    for (const g of this.guests) {
+      if (g.seg >= g.pts.length - 1) {
+        g.wait -= step;
+        if (g.wait <= 0 && !g.cup) {
+          g.cup = true;
+          g.node.insertAdjacentHTML('beforeend', '<rect class="cup" x="2.2" y="-8.5" width="2.2" height="3"/>');
+          g.pts = [...g.pts].reverse();
+          g.seg = 0;
+          g.t = 0;
+        } else if (g.cup) {
+          g.node.remove();
+          continue;
+        }
+      } else {
+        const a = g.pts[g.seg];
+        const b = g.pts[g.seg + 1];
+        const len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 0.01;
+        g.t += (step * 1.4) / len;
+        if (g.t >= 1) {
+          g.seg++;
+          g.t = 0;
+        }
+      }
+      const s = Math.min(g.seg, g.pts.length - 2);
+      const a = g.pts[s];
+      const b = g.pts[s + 1];
+      const t = g.seg >= g.pts.length - 1 ? 1 : g.t;
+      const [x, y] = this.pen.pt(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t);
+      g.node.setAttribute('transform', `translate(${x.toFixed(1)},${y.toFixed(1)}) scale(2.1)`);
+      alive.push(g);
+    }
+    this.guests = alive;
+  }
+}
+
 /** Собирает SVG по текущему состоянию. Строка стабильна, пока состояние не изменилось. */
 export function interiorSvg(st: GameState, cfg: GameConfig, title: string): string {
   const seats = cfg.balance.locations[st.options.location].seats;
-  const w = seats >= 14 ? 11 : seats >= 10 ? 9 : 8;
-  const d = 7;
+  const { w, d } = hallSize(st, cfg);
   const viewW = (w + d) * 32 + 60;
   const viewH = (w + d) * 16 + 150;
   const root = svgEl('svg', { viewBox: `0 0 ${viewW} ${viewH}`, class: 'scene', role: 'img', 'aria-label': 'Зал кофейни' }) as SVGSVGElement;
@@ -61,7 +152,7 @@ export function interiorSvg(st: GameState, cfg: GameConfig, title: string): stri
   const team = st.employees.filter((e) => e.role === 'barista').slice(0, st.posts);
   team.forEach((_, i) => {
     const [px, py] = pen.pt(2.2 + i * 2, 0.62, 12);
-    push(0.5 + i, () => root.insertAdjacentHTML('beforeend', `<g data-goto-tab="staff" class="hot" tabindex="0" role="button" aria-label="Бариста">${person(px, py, 'apron', '<rect class="cap" x="-3" y="-16.8" width="6" height="1.8" rx=".8"/>')}</g>`));
+    push(0.5 + i, () => root.insertAdjacentHTML('beforeend', `<g data-goto-tab="staff" class="hot" tabindex="0" role="button" aria-label="Бариста"><g class="barista-work" style="animation-delay:${-i * 1.3}s">${person(px, py, 'apron', '<rect class="cap" x="-3" y="-16.8" width="6" height="1.8" rx=".8"/>')}</g></g>`));
   });
   push(3, () => {
     pen.box(1, 1.2, Math.min(w - 2, 5.5), 0.85, 0, 26, 'wood');
@@ -122,16 +213,8 @@ export function interiorSvg(st: GameState, cfg: GameConfig, title: string): stri
     });
   }
 
-  // очередь от двери к кассе
+  // дверь; очередь живая – её рисует HallLife
   pen.flat(w - 1.9, d - 0.05, 1.3, 0.05, 0, 'f-t m-glassbody');
-  const queue = Math.min(8, last ? Math.ceil(last.lostQueue / 3) + (last.served > 40 ? 2 : 1) : 0);
-  for (let i = 0; i < queue; i++) {
-    const qx = 4.2 + (i % 4) * 0.55 + (i >= 4 ? 0.2 : 0);
-    const qy = 2.55 + Math.floor(i / 4) * 0.42;
-    const [px, py] = pen.pt(qx, qy);
-    const c = Math.floor(hash(i, 7, st.day) * 6);
-    push(qx + qy, () => root.insertAdjacentHTML('beforeend', person(px, py, `pc${c}`)));
-  }
   items.sort((a, b) => a.key - b.key).forEach((i) => i.html());
   return root.outerHTML;
 }

@@ -219,3 +219,11 @@ html, body { margin: 0; height: 100%; background: var(--surface); }
 @media (prefers-reduced-motion: reduce) { .gs-tut-spot { transition: none; } }
 
 @media (max-width: 760px) { .it-hud .it-stat:not(:first-child) { display: none; } .it-date { min-width: 0; } }
+
+:root { --c4: #8a5bb0; }
+[data-theme="night"] { --c4: #a97cd1; }
+.gs-interior .life { pointer-events: none; }
+.barista-work { animation: barista 3.2s ease-in-out infinite alternate; }
+@keyframes barista { to { transform: translateX(46px) translateY(-23px); } }
+@media (prefers-reduced-motion: reduce) { .barista-work { animation: none; } }
+.gs-branch-loc { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; }

@@ -74,7 +74,8 @@ describe('simulateDay: спрос и продажи', () => {
     const share = own / (own + r1 + r2 + 1);
     expect(v.quality).toBeCloseTo(1.075);
     expect(r.share).toBeCloseTo(share, 10);
-    expect(r.demand).toBe(Math.round(b.locations.metro.footTraffic * 1.15 * 0.35 * 0.3 * share));
+    // первый день всегда ясный: погода × 1,05
+    expect(r.demand).toBe(Math.round(b.locations.metro.footTraffic * 1.15 * 0.35 * 0.3 * share * b.weather.kinds.clear.demand));
     expect(r.served).toBe(r.demand);
     expect(r.rivalShares).toHaveLength(2);
   });

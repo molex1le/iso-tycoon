@@ -1,6 +1,6 @@
 /* Живая карта города: ядро в векторе, кварталы вокруг – картинками, движение, погода, камера. Только отображение – на игру не влияет. */
 import { CITY_H, CITY_OX, CITY_OY, CITY_W, MAX_H, blockPlaces, loadHorizon, loadSprites, spriteBox, type BlockSprite } from './city';
-import { ALL_WALKS, CITY_MAX, CITY_MIN, ROADS, WALKS, drawBuilding, drawCar, drawProp, drawTruck, ground, layoutFor, type Building, type Layout, type LocationKey, type Prop, type ShopLook } from './models';
+import { ALL_WALKS, CITY_MAX, CITY_MIN, ROADS, WALKS, drawBuilding, drawCar, drawProp, drawTruck, ground, layoutFor, type Building, type Layout, type LocationKey, type Prop, type ShopLook, type World } from './models';
 import { Pen, svgEl } from './pen';
 
 const W = CITY_W;
@@ -78,6 +78,8 @@ export interface Flow {
 
 export interface FlowLabel {
   player: number;
+  /** реальные источники людей: сколько человек в день */
+  sources: { id: string; name: string; people: number }[];
   rivals: { name: string; share: number; closed: boolean }[];
 }
 
@@ -144,6 +146,7 @@ export class SceneView {
   private canvas: HTMLCanvasElement;
   private drops: { x: number; y: number; v: number; s: number }[] = [];
   private overlayData: FlowLabel | null = null;
+  private town: World = { rivals: [] };
 
   constructor(
     private host: HTMLElement,
@@ -194,7 +197,7 @@ export class SceneView {
   setLocation(location: LocationKey): void {
     if (location === this.location) return;
     this.location = location;
-    this.layout = layoutFor(location, this.choosing);
+    this.layout = layoutFor(location, this.choosing, this.town);
     this.look = null;
     for (const w of this.walkers) w.node.remove();
     this.walkers = [];
@@ -396,6 +399,17 @@ export class SceneView {
       const [px, py] = p.pt(b.x + b.w / 2, b.y + b.d / 2, pinZ);
       p.g.insertAdjacentHTML('beforeend', `<g class="alert" transform="translate(${px},${py - 14})"><circle r="11"/><text y="5" text-anchor="middle">!</text></g>`);
     }
+  }
+
+  /** Новые конкуренты и филиал: перестраивает карту, камера остаётся на месте. */
+  setWorld(world: World, shares: Record<string, number>): void {
+    for (const s of this.layout.sources) if (shares[s.id] !== undefined) s.weight = shares[s.id];
+    if (JSON.stringify(world) === JSON.stringify(this.town)) return;
+    this.town = world;
+    const weights = Object.fromEntries(this.layout.sources.map((s) => [s.id, s.weight]));
+    this.layout = layoutFor(this.location, this.choosing, world);
+    for (const s of this.layout.sources) s.weight = weights[s.id] ?? s.weight;
+    this.rebuildStatics();
   }
 
   setSeason(winter: boolean, weather: Weather): void {
@@ -781,14 +795,17 @@ export class SceneView {
       t.textContent = text;
     };
     const door = this.layout.doors.player;
+    const walk = data.sources.find((x) => x.id === 'walk');
+    if (walk) label([door[0] + 3.5, door[1]], `Прохожие · ${walk.people} чел/день`, 'small');
     this.layout.sources.forEach((s) => {
+      const real = data.sources.find((x) => x.id === s.id);
       line(route(s.at, door), 'flow-line you', 3 + s.weight * 14);
-      label(s.at, `${s.name} · ${Math.round(s.weight * 100)}% потока`);
+      label(s.at, real ? `${real.name} · ${real.people} чел/день` : s.name);
     });
     data.rivals.forEach((r, i) => {
       if (r.closed) return;
       const d = this.layout.doors[`rival${i}`];
-      line(route(this.layout.sources[0].at, d), `flow-line r${i}`, 2 + r.share * 16);
+      line(route(this.layout.sources[0].at, d), `flow-line r${Math.min(i, 3)}`, 2 + r.share * 16);
       label(d, `${r.name} · ${Math.round(r.share * 100)}%`, 'small');
     });
     label(door, `Вы · ${Math.round(data.player * 100)}%`, 'you');

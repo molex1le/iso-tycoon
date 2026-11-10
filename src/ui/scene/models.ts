@@ -227,17 +227,19 @@ function cafePlayer(p: Pen, b: Building, look: ShopLook): void {
 function cafeChain(p: Pen, b: Building): void {
   const { x, y, w, d } = b;
   const H = 32;
+  const brand = b.variant ? 'green' : 'chainred';
   p.box(x, y, w, d, 0, H, 'white');
-  p.wallL(x, x + w, y + d, 22, H, 'f-l m-chainred');
-  p.wallR(y, y + d, x + w, 22, H, 'f-r m-chainred');
+  p.wallL(x, x + w, y + d, 22, H, `f-l m-${brand}`);
+  p.wallR(y, y + d, x + w, 22, H, `f-r m-${brand}`);
   winL(p, x, x + w, y + d, 4, w, 15, 0.8);
   winR(p, y, y + d, x + w, 4, d, 15, 0.8);
   doorL(p, x + w / 2 - 0.2, y + d, 0.4, 18, 'door glassdoor');
   p.text('L', x + w / 2, y + d + 0.001, 24, b.title ?? 'КОФЕМАРКЕТ', 'sign-text', 8.5);
   p.box(x + 0.1, y + 0.1, w - 0.2, d - 0.2, H, 3, 'roofgrey');
   // куб-рекламу видно издалека
-  p.box(x + w - 1.3, y + 0.5, 1, 1, H + 3, 20, 'chainred');
-  p.text('L', x + w - 0.8, y + 1.5 + 0.001, H + 8, 'КМ', 'sign-text', 12);
+  p.box(x + w - 1.3, y + 0.5, 1, 1, H + 3, 20, brand);
+  const initials = (b.title ?? 'КОФЕ МАРКЕТ').replace('КОФЕМАРКЕТ', 'КОФЕ МАРКЕТ').split(/\s+/).map((s) => s[0]).join('').slice(0, 2);
+  p.text('L', x + w - 0.8, y + 1.5 + 0.001, H + 8, initials, 'sign-text', 12);
   acUnit(p, x + 0.5, y + 1.6, H + 3);
 }
 
@@ -406,7 +408,7 @@ function vacant(p: Pen, b: Building): void {
   winL(p, x, x + w, y + d, 4, w * 2, 14, 0);
   p.box(x + 0.08, y + 0.08, w - 0.16, d - 0.16, 26, 2, 'roofgrey');
   p.box(x + 0.3, y + d - 0.02, w - 0.6, 0.04, 19, 6, 'yellow');
-  p.text('L', x + w / 2, y + d + 0.02 + 0.001, 20, 'АРЕНДА', 'sign-dark', 5.5);
+  p.text('L', x + w / 2, y + d + 0.02 + 0.001, 20, b.title ?? 'АРЕНДА', 'sign-dark', 5.5);
 }
 
 export function drawBuilding(pen: Pen, b: Building, look: ShopLook): void {
@@ -635,8 +637,8 @@ export type LocationKey = 'suburb' | 'metro' | 'center';
 
 interface Pt2 { x: number; y: number; w: number; d: number }
 interface Site extends Pt2 { door: Pt; step: Pt }
-export interface FlowSource { name: string; at: Pt; weight: number }
-interface Plan { player: Site; rival0: Site; rival1: Site; sources: FlowSource[]; camera: Pt }
+export interface FlowSource { id: string; name: string; at: Pt; weight: number }
+interface Plan { player: Site; rival0: Site; rival1: Site; rival2: Site; rival3: Site; sources: FlowSource[]; camera: Pt }
 
 /** Три помещения на карте: у каждого своё окружение, конкуренты и источники людей. */
 const PLANS: Record<LocationKey, Plan> = {
@@ -644,21 +646,27 @@ const PLANS: Record<LocationKey, Plan> = {
     player: { x: 5, y: 6, w: 3, d: 2, door: [6.5, 8.5], step: [6.5, 8.05] },
     rival0: { x: 15, y: 5, w: 3, d: 3, door: [16.5, 8.5], step: [16.5, 8.05] },
     rival1: { x: 6, y: 12, w: 2, d: 2, door: [8.5, 13.5], step: [8.05, 13.5] },
-    sources: [{ name: 'Метро', at: [13, 8.5], weight: 0.45 }, { name: 'Остановка', at: [14, 11.5], weight: 0.15 }],
+    rival2: { x: 18, y: 6, w: 3, d: 2, door: [19.5, 8.5], step: [19.5, 8.05] },
+    rival3: { x: 12, y: 19, w: 3, d: 2, door: [13.5, 21.5], step: [13.5, 21.05] },
+    sources: [{ id: 'metro', name: 'Метро', at: [13, 8.5], weight: 0.45 }, { id: 'stop', name: 'Остановка', at: [14, 11.5], weight: 0.15 }],
     camera: [9.75, 7],
   },
   center: {
     player: { x: 25, y: 6, w: 3, d: 2, door: [26.5, 8.5], step: [26.5, 8.05] },
     rival0: { x: 29, y: 5, w: 3, d: 3, door: [30.5, 8.5], step: [30.5, 8.05] },
     rival1: { x: 19, y: 15, w: 2, d: 2, door: [21.5, 16.5], step: [21.05, 16.5] },
-    sources: [{ name: 'Торговый центр', at: [24.5, 14.5], weight: 0.35 }, { name: 'Бизнес-центр', at: [24.5, 2.5], weight: 0.3 }],
+    rival2: { x: 15, y: 5, w: 3, d: 3, door: [16.5, 8.5], step: [16.5, 8.05] },
+    rival3: { x: 30, y: 18, w: 3, d: 3, door: [31.5, 21.5], step: [31.5, 21.05] },
+    sources: [{ id: 'mall', name: 'Торговый центр', at: [24.5, 14.5], weight: 0.35 }, { id: 'office', name: 'Бизнес-центр', at: [24.5, 2.5], weight: 0.3 }],
     camera: [27, 8],
   },
   suburb: {
     player: { x: 3, y: 19, w: 3, d: 2, door: [4.5, 21.5], step: [4.5, 21.05] },
     rival0: { x: 17, y: 18, w: 3, d: 3, door: [18.5, 21.5], step: [18.5, 21.05] },
     rival1: { x: 6, y: 25, w: 2, d: 2, door: [8.5, 26.5], step: [8.05, 26.5] },
-    sources: [{ name: 'Дворы', at: [8.5, 18.5], weight: 0.3 }, { name: 'Школа', at: [3.5, 24.5], weight: 0.2 }],
+    rival2: { x: 12, y: 19, w: 3, d: 2, door: [13.5, 21.5], step: [13.5, 21.05] },
+    rival3: { x: 15, y: 5, w: 3, d: 3, door: [16.5, 8.5], step: [16.5, 8.05] },
+    sources: [{ id: 'yards', name: 'Дворы', at: [8.5, 18.5], weight: 0.3 }, { id: 'school', name: 'Школа', at: [3.5, 24.5], weight: 0.2 }],
     camera: [8, 20],
   },
 };
@@ -674,31 +682,43 @@ export interface Layout {
 
 export const LOCATION_KEYS = Object.keys(PLANS) as LocationKey[];
 
+/** Что в городе меняется по ходу партии: новые конкуренты и ваш филиал. */
+export interface World {
+  rivals: { kind?: string; name: string; opening: boolean }[];
+  branch?: LocationKey | null;
+}
+
 /** Собирает карту под выбранное помещение. В режиме выбора остальные помещения показаны как свободные. */
-export function layoutFor(location: LocationKey, choosing = false): Layout {
+export function layoutFor(location: LocationKey, choosing = false, world: World = { rivals: [] }): Layout {
   const plan = PLANS[location];
-  const placed: Building[] = [
-    { id: 'player', kind: 'cafePlayer', x: plan.player.x, y: plan.player.y, w: 3, d: 2 },
-    { id: 'rival0', kind: 'cafeChain', ...rect(plan.rival0) },
-    { id: 'rival1', kind: 'cafeCraft', ...rect(plan.rival1) },
-  ];
+  const sites = [plan.rival0, plan.rival1, plan.rival2, plan.rival3];
+  const rivals = world.rivals.length ? world.rivals : [{ kind: 'chain', name: '', opening: false }, { kind: 'craft', name: '', opening: false }];
+  const placed: Building[] = [{ id: 'player', kind: 'cafePlayer', x: plan.player.x, y: plan.player.y, w: 3, d: 2 }];
+  rivals.slice(0, 4).forEach((r, i) => {
+    const site = rect(sites[i]);
+    const id = `rival${i}`;
+    if (r.opening) placed.push({ id, kind: 'vacant', ...site, title: 'СКОРО' });
+    else if (i === 1) placed.push({ id, kind: 'cafeCraft', ...site });
+    else placed.push({ id, kind: 'cafeChain', ...site, title: i === 0 ? undefined : r.name.toUpperCase(), variant: r.kind === 'craft' ? 1 : 0 });
+  });
   for (const k of LOCATION_KEYS) {
     if (k === location) continue;
     const p = PLANS[k].player;
     if (choosing) placed.push({ id: `lot-${k}`, kind: 'vacant', x: p.x, y: p.y, w: 3, d: 2 });
+    else if (world.branch === k) placed.push({ id: 'branch', kind: 'cafePlayer', x: p.x, y: p.y, w: 3, d: 2 });
     else if (k === 'metro') placed.push({ kind: 'shop', x: p.x, y: p.y, w: 3, d: 2, variant: 2, title: 'ПРОДУКТЫ' });
   }
   const hit = (b: { x: number; y: number; w: number; d: number }, c: Building) => b.x < c.x + c.w && c.x < b.x + b.w && b.y < c.y + c.d && c.y < b.y + b.d;
   const base = BUILDINGS.filter((b) => !placed.some((c) => hit(b, c)));
-  const props = PROPS.filter((o) => !placed.some((c) => o.x > c.x - 0.4 && o.x < c.x + c.w + 0.4 && o.y > c.y - 0.4 && o.y < c.y + c.d + 0.4));
-  return {
-    buildings: [...base, ...placed],
-    props,
-    doors: { player: plan.player.door, rival0: plan.rival0.door, rival1: plan.rival1.door },
-    steps: { player: plan.player.step, rival0: plan.rival0.step, rival1: plan.rival1.step },
-    sources: plan.sources,
-    camera: plan.camera,
-  };
+  const kept = placed.filter((c, i) => !placed.some((o, k) => k < i && hit(o, c)));
+  const props = PROPS.filter((o) => !kept.some((c) => o.x > c.x - 0.4 && o.x < c.x + c.w + 0.4 && o.y > c.y - 0.4 && o.y < c.y + c.d + 0.4));
+  const doors: Record<string, Pt> = { player: plan.player.door };
+  const steps: Record<string, Pt> = { player: plan.player.step };
+  sites.forEach((site, i) => {
+    doors[`rival${i}`] = site.door;
+    steps[`rival${i}`] = site.step;
+  });
+  return { buildings: [...base, ...kept], props, doors, steps, sources: plan.sources.map((x) => ({ ...x })), camera: plan.camera };
 }
 
 function rect(s: Pt2): Pt2 {

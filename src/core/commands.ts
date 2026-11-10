@@ -1,3 +1,6 @@
+import type { LocationId } from './config';
+import { closeBranch, openBranch } from './branch';
+import { continueYear } from './years';
 import { clamp, defaultConfig, round2, type AccountingId, type AgencyId, type EquipmentId, type GameConfig, type LoanProductId, type SupplierId } from './config';
 import { chooseOption } from './events';
 import { say, usd } from './feed';
@@ -37,6 +40,9 @@ export type Command =
   | { type: 'Acknowledge' }
   | { type: 'ResolveInspection'; choice: 'accept' | 'contest' | 'bribe' }
   | { type: 'AnswerInspector'; reply: Reply }
+  | { type: 'OpenBranch'; location: LocationId }
+  | { type: 'CloseBranch' }
+  | { type: 'ContinueYear' }
   | { type: 'ChooseEventOption'; index: number }
   | { type: 'DebugAddMoney'; amount: number }
   | { type: 'DebugInspection'; agency?: AgencyId }
@@ -219,6 +225,12 @@ function run(state: GameState, command: Command, cfg: GameConfig): boolean {
       return resolveVisit(state, cfg, command.choice);
     case 'AnswerInspector':
       return answerInspector(state, cfg, command.reply);
+    case 'OpenBranch':
+      return openBranch(state, cfg, command.location);
+    case 'CloseBranch':
+      return closeBranch(state, cfg);
+    case 'ContinueYear':
+      return continueYear(state, cfg);
     case 'ChooseEventOption':
       return chooseOption(state, cfg, command.index);
     case 'DebugAddMoney': {
@@ -243,7 +255,7 @@ function run(state: GameState, command: Command, cfg: GameConfig): boolean {
  * Возвращает false и ничего не пишет, если команда некорректна.
  */
 export function applyCommand(state: GameState, command: Command, cfg: GameConfig = defaultConfig): boolean {
-  if (state.finished) return false;
+  if (state.finished && command.type !== 'ContinueYear') return false;
   if (!run(state, command, cfg)) return false;
   state.commandLog.push({ day: state.day, command });
   return true;
@@ -259,9 +271,9 @@ export function replay(
 ): GameState {
   const state = createInitialState(seed, options, cfg);
   let i = 0;
-  while (!state.finished && state.day <= untilDay) {
+  while (state.day <= untilDay) {
     while (i < log.length && log[i].day === state.day) applyCommand(state, log[i++].command, cfg);
-    if (state.day === untilDay || state.pending.length > 0) break;
+    if (state.finished || state.day === untilDay || state.pending.length > 0) break;
     simulateDay(state, cfg);
   }
   return state;

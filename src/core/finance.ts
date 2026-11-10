@@ -1,5 +1,5 @@
 import { dayOfMonth } from './calendar';
-import { round2, totalDays, type GameConfig } from './config';
+import { round2, gameLength, type GameConfig } from './config';
 import { say, usd } from './feed';
 import { loansDebt, monthlyLoanPayments } from './loans';
 import { demandView } from './shop';
@@ -187,7 +187,7 @@ export interface Upcoming {
 export function upcoming(state: GameState, cfg: GameConfig): Upcoming[] {
   const b = cfg.balance;
   const out: Upcoming[] = [];
-  const last = totalDays(b);
+  const last = gameLength(state, b);
   const today = Math.min(state.day, last);
   const monthEnd = today + (b.time.daysPerMonth - dayOfMonth(today, b));
   out.push({ day: monthEnd, kind: 'month', title: 'Аренда, зарплаты, коммуналка', amount: monthlyFixed(state, cfg) + state.overtimeAccrued * (1 + b.staff.contributions) });

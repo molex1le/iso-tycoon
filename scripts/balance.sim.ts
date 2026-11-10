@@ -111,6 +111,8 @@ function play(seed: number, bot: Bot, opts: NewGameOptions): GameState {
 }
 
 const N = Number(process.env.GAMES ?? 1000);
+
+
 const pct = (a: number[], q: number) => (a.length ? Math.round([...a].sort((x, y) => x - y)[Math.floor((a.length - 1) * q)]) : 0);
 
 it('баланс: прогон партий ботами', () => {

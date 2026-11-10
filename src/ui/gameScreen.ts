@@ -1,7 +1,7 @@
 import { dayOfMonth, monthOf, seasonOf } from '../core/calendar';
 import type { Speed } from '../core/clock';
 import { announcedInspection, type Command } from '../core/commands';
-import { AGENCIES, itemCost, totalDays, type AccountingId, type AgencyId, type EquipmentId, type LoanProductId, type SupplierId } from '../core/config';
+import { AGENCIES, gameLength, itemCost, totalDays, type AccountingId, type AgencyId, type EquipmentId, type LoanProductId, type LocationId, type SupplierId } from '../core/config';
 import { eventById, fillVars, optionCost } from '../core/events';
 import { accountantMonthly, accountBlocked, computeScore, cushionDays, dailyFixed, payrollMonthly, taxOwed, upcoming } from '../core/finance';
 import { loanOffer, loansDebt } from '../core/loans';
@@ -14,18 +14,21 @@ import type { DayRecord, ExpenseCategory, GameState, Pending } from '../core/sta
 import { clockTime, money, monthName, percent, price, signedMoney } from './format';
 import { audio, audioControlsHtml, type Sfx } from './audio';
 import { bindCharts, clearCharts, lineChart } from './charts';
-import { hash } from './scene/pen';
 import { nightFactor, SceneView } from './scene/sceneView';
 import { settings, saveSettings } from './settings';
 import tips from '../data/tips.json';
 import tutorial from '../data/tutorial.json';
-import { interiorSvg } from './scene/interior';
+import { HallLife, hallSize, interiorSvg } from './scene/interior';
+import { branchOffer } from '../core/branch';
+import { weatherOf } from '../core/weather';
+import { flowSources } from '../core/shop';
+import type { LocationKey } from './scene/models';
 import { advise } from '../core/advisor';
 import { bribeCost, memoryLine, replyChance, type Reply } from '../core/inspections';
 import { gameSummary } from '../core/summary';
 
-type Tab = 'hall' | 'overview' | 'finance' | 'prices' | 'staff' | 'stock' | 'checks' | 'gear' | 'bank' | 'dates' | 'journal';
-const TABS: [Tab, string][] = [['hall', 'Зал'], ['overview', 'Обзор'], ['finance', 'Финансы'], ['prices', 'Цены'], ['staff', 'Люди'], ['stock', 'Склад'], ['checks', 'Проверки'], ['gear', 'Техника'], ['bank', 'Банк'], ['dates', 'Сроки'], ['journal', 'Журнал']];
+type Tab = 'hall' | 'net' | 'overview' | 'finance' | 'prices' | 'staff' | 'stock' | 'checks' | 'gear' | 'bank' | 'dates' | 'journal';
+const TABS: [Tab, string][] = [['hall', 'Зал'], ['overview', 'Обзор'], ['finance', 'Финансы'], ['prices', 'Цены'], ['staff', 'Люди'], ['stock', 'Склад'], ['checks', 'Проверки'], ['gear', 'Техника'], ['bank', 'Банк'], ['net', 'Сеть'], ['dates', 'Сроки'], ['journal', 'Журнал']];
 
 const STAR = '<svg class="it-ico" viewBox="0 0 20 20" style="color:var(--coin-shade)"><path d="m10 1.5 2.6 5.3 5.9.9-4.3 4.1 1 5.8L10 14.9l-5.2 2.7 1-5.8L1.5 7.7l5.9-.9z"/></svg>';
 const PERSON = '<svg class="it-ico" viewBox="0 0 20 20" style="color:var(--ink-muted)"><circle cx="10" cy="6" r="3.5"/><path d="M3 18c0-4 3-6.5 7-6.5s7 2.5 7 6.5z"/></svg>';
@@ -61,6 +64,7 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
   let menuOpen = false;
   let debugOpen = false;
   let flowsOn = false;
+  const hall = new HallLife();
   const fb = { clear: 0, fun: 0, hard: 0, text: '' };
   let fbCopied = false;
   let feedbackOpen = false;
@@ -106,10 +110,10 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
   const tutEl = ref('tut');
   const spotEl = ref('spot');
   const scene = new SceneView(ref('map'), (id) => {
-    if (id === 'player') {
+    if (id === 'player' || id === 'branch') {
       selected = null;
       windowOpen = true;
-      tab = 'hall';
+      tab = id === 'branch' ? 'net' : 'hall';
       audio.play('open');
     } else selected = id;
     renderAll();
@@ -160,7 +164,7 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
   // ---------- верхняя полоса ----------
   function renderHud(): void {
     const st = s();
-    const day = Math.min(st.day, totalDays(b));
+    const day = Math.min(st.day, gameLength(st, b));
     const month = monthOf(day, b);
     const l = last();
     const speed = game.blocked ? 0 : game.clock.speed;
@@ -176,10 +180,16 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
       <div class="it-stat">${PERSON}<div><div class="lbl">Персонал</div><div class="v">${st.employees.length}</div></div></div>
       <div class="it-stat gs-opt" data-tip="${next ? next.title : ''}"><div><div class="lbl">Ближайший срок</div><div class="v ${next && next.day - st.day <= 3 ? 'warn' : ''}">${next ? (next.day <= st.day ? 'сегодня' : 'через ' + (next.day - st.day) + ' дн.') : '–'}</div></div></div>
       <div class="spacer"></div>
-      <div class="it-date"><div class="lbl">${seasonOf(month, b).name} · день ${day} из ${totalDays(b)}</div><div style="font-weight:600">${dayOfMonth(day, b)} · ${monthName(month)} · <span class="num" data-ref="time"></span></div></div>
+      <div class="it-date"><div class="lbl">${seasonOf(month, b).name} · день ${day} из ${gameLength(st, b)}</div><div style="font-weight:600" data-tip="${weatherTip()}">${dayOfMonth(day, b)} · ${monthName(month)} · ${b.weather.kinds[weatherOf(st)].name.toLowerCase()} · <span class="num" data-ref="time"></span></div></div>
       <div class="it-speed" role="group" aria-label="Скорость">${btn(0, '❚❚', 'Пауза')}${btn(1, '1×')}${btn(2, '2×')}${btn(3, '3×')}</div>
       <button class="it-btn it-btn--secondary it-btn--icon" data-menu data-k="menu" aria-label="Меню">☰</button>`);
     shownTime = '';
+  }
+
+  function weatherTip(): string {
+    const k = b.weather.kinds[weatherOf(s())];
+    const d = Math.round((k.demand - 1) * 100);
+    return `${k.name}: ${d >= 0 ? '+' : '−'}${Math.abs(d)}% к числу прохожих сегодня.`;
   }
 
   let shownTime = '';
@@ -218,12 +228,14 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
       playerOpen: reason === null,
       queue: l ? l.lostQueue : 0,
     });
-    scene.setOverlay(flowsOn ? { player: v.share, rivals: st.competitors.map((c, i) => ({ name: c.name, share: v.rivalShares[i] ?? 0, closed: c.closedUntilDay > 0 })) } : null);
-    const month = monthOf(Math.min(st.day, totalDays(b)), b);
+    const sources = flowSources(st, cfg);
+    const people = sources.reduce((a, x) => a + x.people, 0) || 1;
+    scene.setWorld({ rivals: st.competitors.map((c) => ({ kind: c.kind, name: c.name, opening: !!c.opening })), branch: (st.branch?.location ?? null) as LocationKey | null }, Object.fromEntries(sources.map((x) => [x.id, x.people / people])));
+    scene.setOverlay(flowsOn ? { player: v.share, sources, rivals: st.competitors.map((c, i) => ({ name: c.name, share: v.rivalShares[i] ?? 0, closed: c.closedUntilDay > 0 })) } : null);
+    const month = monthOf(st.day, b);
     const season = seasonOf(month, b).id;
-    const roll = hash(st.day, st.seed & 0xffff, 40);
-    const chance = season === 'winter' ? 0.55 : season === 'summer' ? 0.12 : 0.35;
-    scene.setSeason(season === 'winter', roll < chance ? (season === 'winter' ? 'snow' : 'rain') : 'clear');
+    const w = weatherOf(st);
+    scene.setSeason(season === 'winter', w === 'snow' ? 'snow' : w === 'rain' ? 'rain' : 'clear');
     const visit = st.pending[0]?.kind === 'inspectionVisit';
     const soon = st.inspections.some((i) => i.noticeDay <= st.day && i.visitDay - st.day <= 1);
     scene.setInspector(visit ? 'door' : soon ? 'coming' : 'none');
@@ -249,7 +261,7 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
       bank: (st.tax.due ? 1 : 0) + st.loans.filter((l) => l.overdue > 0).length,
     };
     const btn = (id: Tab, name: string) => `<button class="it-tab ${windowOpen && tab === id ? 'on' : ''}" data-tab="${id}" data-k="tab-${id}" aria-pressed="${windowOpen && tab === id}">${name}${badges[id] ? `<span class="gs-badge">${badges[id]}</span>` : ''}</button>`;
-    fill(dockEl, TABS.map(([id, name]) => btn(id, name)).join('') + `<span class="gs-dock-sep"></span><button class="it-tab ${flowsOn ? 'on' : ''}" data-flows data-k="flows" aria-pressed="${flowsOn}">Потоки</button>`);
+    fill(dockEl, TABS.filter(([id]) => id !== 'dates' && id !== 'journal').map(([id, name]) => btn(id, name)).join('') + `<span class="gs-dock-sep"></span><button class="it-tab ${flowsOn ? 'on' : ''}" data-flows data-k="flows" aria-pressed="${flowsOn}">Потоки</button>`);
     winEl.hidden = !windowOpen;
     if (!windowOpen) {
       clearCharts();
@@ -259,7 +271,7 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
     const loc = b.locations[st.options.location];
     fill(headEl, `<div class="grow"><span class="it-lvl">${b.forms[st.options.form].name} · ${loc.name.toUpperCase()}</span> <span class="ttl">${st.shopName}</span></div><button class="it-btn it-btn--ghost it-btn--icon" data-close data-k="close" aria-label="Закрыть">✕</button>`);
     const flow: Partial<Record<Tab, boolean>> = { hall: false, overview: false, finance: false, journal: false };
-    const body = { hall: hallHtml, overview: overviewHtml, finance: financeHtml, prices: pricesHtml, staff: staffHtml, stock: stockHtml, checks: checksHtml, gear: gearHtml, bank: bankHtml, dates: datesHtml, journal: journalHtml }[tab]();
+    const body = { net: netHtml, hall: hallHtml, overview: overviewHtml, finance: financeHtml, prices: pricesHtml, staff: staffHtml, stock: stockHtml, checks: checksHtml, gear: gearHtml, bank: bankHtml, dates: datesHtml, journal: journalHtml }[tab]();
     fill(sideEl, flow[tab] === false ? body : `<div class="gs-cols">${body}</div>`);
   }
 
@@ -268,7 +280,7 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
     const back = '';
     const closeBtn = `<button class="it-btn it-btn--ghost it-btn--icon" data-select="" data-k="pl-close" aria-label="Закрыть">✕</button>`;
     if (id === 'metro') {
-      const season = seasonOf(monthOf(Math.min(st.day, totalDays(b)), b), b);
+      const season = seasonOf(monthOf(st.day, b), b);
       return `<header><div class="t"><span class="it-lvl">ИСТОЧНИК ПОТОКА</span><div class="ttl" style="margin-top:6px">Метро</div></div>${closeBtn}</header>
         <div class="gs-facts">${row('Поток у вашей двери', `${st.footTraffic} чел/день`)}${row('Сезон: ' + season.name.toLowerCase(), '×' + season.demand.toLocaleString('ru-RU'))}${row('Хотят кофе', percent(b.demand.coffeeWantShare))}${row('Знают о вас', percent(st.awareness))}</div>
         <div class="gs-note">Клиенты = поток × сезон × «хотят кофе» × узнаваемость × ваша доля.</div>${back}`;
@@ -295,6 +307,8 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
     const i = Number(id.replace('rival', ''));
     const c = st.competitors[i];
     const v = demandView(st, cfg);
+    if (c?.opening) return `<header><div class="t"><span class="it-lvl">СТРОИТСЯ</span><div class="ttl" style="margin-top:6px">«${c.name}»</div></div>${closeBtn}</header><div class="gs-facts">${row('Откроется', `через ${Math.max(1, c.closedUntilDay - st.day)} дн.`)}${row('Средний чек', price(c.avgCheck))}${row('Качество', c.quality.toLocaleString('ru-RU'))}</div><div class="gs-note">Пока строятся, у вас есть время поднять узнаваемость и качество.</div>`;
+    if (!c) return '';
     return `<header><div class="t"><span class="it-lvl">КОНКУРЕНТ</span><div class="ttl" style="margin-top:6px">«${c.name}»</div></div>${closeBtn}</header>
       <div class="gs-facts">${row('Средний чек', price(c.avgCheck))}${row('Качество', c.quality.toLocaleString('ru-RU'))}${row('Репутация', stars(c.reputation))}${row('Доля прохожих', percent(v.rivalShares[i]))}${row('Ваша доля', percent(v.share))}</div>
       <div class="gs-note">Ваш чек ${price(v.check)}, качество ${v.quality.toFixed(2).replace('.', ',')}.</div>${back}`;
@@ -313,8 +327,32 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
       <div class="gs-note">Кликните по кофемашине, бариста или холодильнику – откроется нужная вкладка.</div></div></div>`;
   }
 
+  const advisorAllowed = () => b.difficulties[s().options.difficulty].advisor;
+
+  function netHtml(): string {
+    const st = s();
+    const br = st.branch;
+    const c = b.branch;
+    const recent = st.history.slice(-30).filter((r) => r.branchProfit !== undefined);
+    const avgProfit = recent.length ? recent.reduce((a, r) => a + (r.branchProfit ?? 0), 0) / recent.length : 0;
+    const head = `<div class="gs-note">Вторая точка работает под управляющим: та же формула спроса, своя узнаваемость, общие касса, налог и репутация. Нужно ${c.minDay} дней работы и репутация от ${String(c.minReputation).replace('.', ',')}.</div>`;
+    if (br) {
+      return `<div class="gs-sec">${head}<div class="gs-card"><div class="it-row"><b class="grow">Филиал: ${b.locations[br.location].name}</b><span class="num">с ${br.openedDay}-го дня</span></div>
+        <div class="gs-facts">${row('Выручка вчера', money(br.lastRevenue))}${row('Итог вчера', signedMoney(br.lastProfit), br.lastProfit < 0 ? 'loss' : 'money')}${row('В среднем за 30 дней', signedMoney(avgProfit) + ' / день', avgProfit < 0 ? 'loss' : 'money')}${row('Узнаваемость', percent(br.awareness), '', 'awareness')}${row('Касса сходится', percent(br.efficiency))}</div>
+        <div class="gs-note">Расходы филиала: аренда, управляющий ${money(c.managerSalary)} и команда ${money(c.staffMonthly)} в месяц, списываются каждый день.</div>
+        ${cmd({ type: 'CloseBranch' }, `Закрыть филиал (вернётся ${money(Math.round(c.equipment * c.closeRefundShare))})`, 'danger')}</div></div>`;
+    }
+    const cards = (Object.keys(b.locations) as LocationId[]).map((id) => {
+      const o = branchOffer(st, cfg, id);
+      const l = b.locations[id];
+      return `<div class="gs-card"><b>${l.name}</b><div class="gs-facts">${row('Поток', `${l.footTraffic} чел/день`)}${row('Аренда', money(l.rent) + '/мес')}${row('Открытие', money(o.cost))}</div>
+        ${o.available ? cmd({ type: 'OpenBranch', location: id }, 'Открыть филиал', 'primary') : `<div class="gs-note">${o.reason}</div>`}</div>`;
+    }).join('');
+    return `<div class="gs-sec">${head}<div class="gs-branch-loc">${cards}</div></div>`;
+  }
+
   function adviceHtml(): string {
-    if (!settings.hints) return '';
+    if (!settings.hints || !advisorAllowed()) return '';
     const list = advise(s(), cfg);
     return `<div class="gs-sec"><div class="lbl">Что сделать сейчас</div>${
       list.length
@@ -334,6 +372,7 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
     const load = l && l.capacity > 0 ? l.served / l.capacity : 0;
     const tiles = l
       ? tile('Выручка вчера', money(l.revenue)) + tile('Прибыль вчера', signedMoney(l.profit), l.profit < 0 ? 'loss' : 'money', 'profit') + tile('Клиентов', String(l.served)) + tile('Ушли без кофе', String(lost), lost ? 'loss' : '') + tile('Подушка', cushion === Infinity ? 'в плюсе' : cushion + ' дн.', cushion < 21 ? 'loss' : '', 'cushion')
+      + (st.branch ? tile('Филиал вчера', signedMoney(st.branch.lastProfit), st.branch.lastProfit < 0 ? 'loss' : 'money') : '')
       : tile('Ждём клиентов', '≈ ' + Math.round(v.expected)) + tile('Подушка', cushion === Infinity ? 'в плюсе' : cushion + ' дн.', cushion < 21 ? 'loss' : '', 'cushion');
     const data = series(30);
     return `<div class="gs-sec"><div class="gs-tiles">${tiles}</div>${closedNote()}
@@ -349,7 +388,7 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
   function series(range: number) {
     const h = s().history.slice(-range);
     const size = Math.max(1, Math.ceil(h.length / 45));
-    const out = { x: [] as number[], cash: [] as number[], revenue: [] as number[], costs: [] as number[], served: [] as number[], lost: [] as number[], you: [] as number[], r0: [] as number[], r1: [] as number[], rep: [] as number[] };
+    const out = { x: [] as number[], cash: [] as number[], revenue: [] as number[], costs: [] as number[], served: [] as number[], lost: [] as number[], you: [] as number[], r0: [] as number[], r1: [] as number[], rx: [] as number[], rep: [] as number[] };
     for (let i = 0; i < h.length; i += size) {
       const part = h.slice(i, i + size);
       const end = part[part.length - 1];
@@ -363,6 +402,7 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
       out.you.push(avg((r) => r.share * 100));
       out.r0.push(avg((r) => (r.rivalShares[0] ?? 0) * 100));
       out.r1.push(avg((r) => (r.rivalShares[1] ?? 0) * 100));
+      out.rx.push(avg((r) => r.rivalShares.slice(2).reduce((a, x) => a + x, 0) * 100));
       out.rep.push(end.reputation);
     }
     return out;
@@ -383,7 +423,7 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
       lineChart('f-cash', { title: 'Деньги на счёте', x: d.x, series: [{ name: 'Деньги', color: 'var(--c2)', values: d.cash }], format: short }),
       lineChart('f-pl', { title: 'Выручка и расходы в день', x: d.x, series: [{ name: 'Выручка', color: 'var(--c3)', values: d.revenue }, { name: 'Расходы', color: 'var(--c1)', values: d.costs }], format: short, min: 0 }),
       lineChart('f-cl', { title: 'Клиенты в день', x: d.x, series: [{ name: 'Обслужили', color: 'var(--c3)', values: d.served }, { name: 'Ушли', color: 'var(--c1)', values: d.lost }], format: (v) => String(Math.round(v)), min: 0 }),
-      lineChart('f-sh', { title: 'Доля рынка, %', x: d.x, series: [{ name: 'Вы', color: 'var(--c1)', values: d.you }, { name: names[0], color: 'var(--c2)', values: d.r0 }, { name: names[1], color: 'var(--c3)', values: d.r1 }], format: (v) => Math.round(v) + '%', min: 0 }),
+      lineChart('f-sh', { title: 'Доля рынка, %', x: d.x, series: [{ name: 'Вы', color: 'var(--c1)', values: d.you }, { name: names[0], color: 'var(--c2)', values: d.r0 }, { name: names[1], color: 'var(--c3)', values: d.r1 }, ...(st.competitors.length > 2 ? [{ name: 'Новые', color: 'var(--c4)', values: d.rx }] : [])], format: (v) => Math.round(v) + '%', min: 0 }),
       lineChart('f-rep', { title: 'Репутация, звёзды', x: d.x, series: [{ name: 'Репутация', color: 'var(--c2)', values: d.rep }], format: (v) => v.toFixed(1).replace('.', ','), min: 1, max: 5 }),
     ].join('');
     return `<div class="gs-sec"><div class="it-seg gs-range">${ranges}</div><div class="gs-grid2">${charts}</div><div class="lbl">Отчёт по месяцам, деньги</div><div class="gs-pl-wrap">${plTable()}</div></div>`;
@@ -392,9 +432,10 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
   function plTable(): string {
     const st = s();
     if (!st.history.length) return '<div class="gs-note">Первая строка появится после первого дня.</div>';
-    const months = [...new Set(st.history.map((r) => r.month))];
+    const idx = (r: DayRecord) => Math.ceil(r.day / b.time.daysPerMonth);
+    const months = [...new Set(st.history.map(idx))];
     const byMonth = months.map((m) => {
-      const days = st.history.filter((r) => r.month === m);
+      const days = st.history.filter((r) => idx(r) === m);
       const exp: Partial<Record<ExpenseCategory, number>> = {};
       for (const r of days) for (const [k, v] of Object.entries(r.expenses)) exp[k as ExpenseCategory] = (exp[k as ExpenseCategory] ?? 0) + v;
       return { rev: days.reduce((a, r) => a + r.revenue, 0), exp };
@@ -402,7 +443,7 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
     const cats = (Object.keys(EXPENSE_NAMES) as ExpenseCategory[]).filter((c) => byMonth.some((m) => m.exp[c]));
     const cell = (v: number, cls = '') => `<td class="${cls}">${v ? Math.round(v).toLocaleString('ru-RU') : '–'}</td>`;
     const totals = byMonth.map((m) => m.rev - Object.values(m.exp).reduce((a, v) => a + v, 0));
-    return `<table class="gs-pl"><thead><tr><th>$</th>${months.map((m) => `<th>${monthName(m).slice(0, 3)}</th>`).join('')}</tr></thead><tbody>
+    return `<table class="gs-pl"><thead><tr><th>$</th>${months.map((m) => `<th>${monthName(((m - 1) % 12) + 1).slice(0, 3)}${m > 12 ? ' ' + Math.ceil(m / 12) : ''}</th>`).join('')}</tr></thead><tbody>
       <tr><td>Выручка</td>${byMonth.map((m) => cell(m.rev)).join('')}</tr>
       ${cats.map((c) => `<tr><td>${EXPENSE_NAMES[c]}</td>${byMonth.map((m) => cell(m.exp[c] ?? 0)).join('')}</tr>`).join('')}
       <tr class="total"><td>Итог</td>${totals.map((v) => cell(v, v < 0 ? 'loss' : 'money')).join('')}</tr></tbody></table>`;
@@ -599,7 +640,7 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
     const st = s();
     const main = menuOpen
       ? `<div class="lbl">Настройки</div>${audioControlsHtml()}
-      <label class="gs-check-line"><input type="checkbox" data-hints ${settings.hints ? 'checked' : ''}> Советник во вкладке «Обзор»</label>
+      ${advisorAllowed() ? `<label class="gs-check-line"><input type="checkbox" data-hints ${settings.hints ? 'checked' : ''}> Советник во вкладке «Обзор»</label>` : ''}
       <div class="it-row"><span class="grow">Панели</span><div class="it-seg gs-fb-seg">${([['auto', 'Авто'], ['day', 'День'], ['night', 'Ночь']] as const).map(([v, n]) => `<button class="${settings.theme === v ? 'on' : ''}" data-theme-set="${v}" data-k="th-${v}" aria-pressed="${settings.theme === v}">${n}</button>`).join('')}</div></div>
       <div class="lbl">Партия</div>
       <div class="it-row"><button class="it-btn it-btn--secondary" data-act="download" data-k="dl">Скачать сейв</button><button class="it-btn it-btn--secondary" data-act="csv" data-k="csv">Телеметрия CSV</button></div>
@@ -728,13 +769,15 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
 
   function endHtml(): string {
     const st = s();
-    const [title, text] = OUTCOMES[st.outcome ?? 'year'];
+    const [title0, text] = OUTCOMES[st.outcome ?? 'year'];
+    const title = st.outcome === 'year' && (st.years ?? 1) > 1 ? `Год ${st.years} завершён` : title0;
     const sc = computeScore(st, cfg);
     const medal = { gold: 'Золото', silver: 'Серебро', bronze: 'Бронза' };
     const grey = st.stats.offbookCaught > 0 || st.offbookTotal > 0 || st.employees.some((e) => !e.official);
     const honest = st.stats.bribes > 0 || grey ? 'Серый кардинал' : st.stats.fines > 0 ? 'Битый предприниматель' : 'Честный предприниматель';
     // цель партии: 3 месяца подряд в плюсе, нет просрочек, репутация не ниже 4,0
-    const lastMonths = [10, 11, 12].map((m) => st.history.filter((r) => r.month === m).reduce((x, r) => x + r.profit, 0));
+    const tail = st.history.slice(-90);
+    const lastMonths = [0, 1, 2].map((k) => tail.slice(k * 30, k * 30 + 30).reduce((x, r) => x + r.profit, 0));
     const onFeet = st.outcome === 'year' && lastMonths.every((v) => v > 0) && !st.loans.some((l) => l.overdue > 0) && st.tax.lateCount === 0 && st.reputation >= 4;
     const sum = gameSummary(st, cfg);
     const hist = st.history;
@@ -751,7 +794,8 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
       <tr class="total"><td>Очки</td><td class="${sc.total < 0 ? 'loss' : 'money'}">${signedMoney(sc.total)}</td></tr></table>
       <div class="gs-facts">${row('«Кофейня на ногах»', onFeet ? 'да' : 'нет', onFeet ? 'money' : 'loss')}${sc.medal ? row('Медаль', medal[sc.medal]) : ''}${row('Репутация директора', honest)}${row('Репутация кофейни', stars(st.reputation))}${row('Проверок / штрафов', `${st.stats.inspections} / ${money(st.stats.fines)}`)}</div>
       ${feedbackHtml()}
-      <button class="it-btn it-btn--primary" data-act="new" data-k="new">Новая партия</button></div>`;
+      <div class="it-row gs-wrap">${st.outcome === 'year' ? cmd({ type: 'ContinueYear' }, `Играть год ${(st.years ?? 1) + 1}`, 'primary') : ''}<button class="it-btn it-btn--${st.outcome === 'year' ? 'secondary' : 'primary'}" data-act="new" data-k="new">Новая партия</button></div>
+      ${st.outcome === 'year' ? `<div class="gs-note">Во втором году аренда дорожает на ${Math.round((b.years.rentGrowth - 1) * 100)}%, проверки идут по новому кругу, а очки этого года сохранятся.</div>` : ''}</div>`;
   }
 
   /** Отзыв для плейтеста: хранится у игрока, отправляется вручную. */
@@ -1043,6 +1087,15 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
     scene.frame(dt, game.blocked ? 0 : game.clock.speed, game.clock.hour);
     applyTheme();
     updateTutorial();
+    if (windowOpen && tab === 'hall') {
+      const svg = sideEl.querySelector<SVGSVGElement>('.gs-interior svg');
+      if (svg) {
+        const size = hallSize(s(), cfg);
+        hall.attach(svg, size.w, size.d);
+        const l = last();
+        hall.frame(dt, game.blocked ? 0 : game.clock.speed, l ? l.served : 0, closedReason(s(), cfg) === null);
+      }
+    }
     audio.setNight(nightFactor(game.clock.hour) > 0.5);
     requestAnimationFrame(frame);
   }

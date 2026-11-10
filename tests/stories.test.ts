@@ -23,7 +23,7 @@ describe('разговор с инспектором', () => {
     expect(nextQuestion(v)).toBe(0);
     applyCommand(s, { type: 'AnswerInspector', reply: 'admit' });
     expect(v.results[0].fine).toBe(300 * cfg.balance.dialogue.admitFactor);
-    expect(v.totalFine).toBe(225 + 500);
+    expect(v.totalFine).toBe(300 * cfg.balance.dialogue.admitFactor + 500);
     expect(nextQuestion(v)).toBe(1);
   });
 
@@ -44,6 +44,13 @@ describe('разговор с инспектором', () => {
       }
     }
     expect(cleared).toBe(true);
+  });
+
+  it('на повторной проверке признание не снижает штраф', () => {
+    const { s, v } = visit();
+    v.reason = 'repeat';
+    applyCommand(s, { type: 'AnswerInspector', reply: 'admit' });
+    expect(v.results[0].fine).toBe(300);
   });
 
   it('спор опирается на настоящую готовность', () => {

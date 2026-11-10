@@ -1,5 +1,6 @@
+import { weatherFactor } from './weather';
 import { monthOf, seasonOf } from './calendar';
-import { clamp, totalDays, type GameConfig } from './config';
+import { clamp, type GameConfig } from './config';
 import { attractiveness, averageCheck, customersPerDay, marketShare } from './demand';
 import type { GameState } from './state';
 
@@ -83,6 +84,17 @@ export interface DemandView {
 }
 
 /** Спрос на указанный день при текущем состоянии кофейни. */
+/** Откуда идут люди мимо двери: источники района плюс просто прохожие. */
+export function flowSources(state: GameState, cfg: GameConfig, day = state.day): { id: string; name: string; people: number }[] {
+  const b = cfg.balance;
+  const loc = b.locations[state.options.location];
+  const season = seasonOf(monthOf(day, b), b).id;
+  const out = loc.sources.map((s) => ({ id: s.id, name: s.name, people: Math.round(state.footTraffic * s.share * ((s.season as Record<string, number>)[season] ?? 1)) }));
+  const rest = 1 - loc.sources.reduce((a, s) => a + s.share, 0);
+  out.push({ id: 'walk', name: 'Прохожие', people: Math.round(state.footTraffic * rest) });
+  return out;
+}
+
 export function demandView(state: GameState, cfg: GameConfig, day = state.day): DemandView {
   const b = cfg.balance;
   const quality = currentQuality(state, cfg);
@@ -91,10 +103,11 @@ export function demandView(state: GameState, cfg: GameConfig, day = state.day): 
   const rivals = state.competitors.map((c) => (day <= c.closedUntilDay ? 0 : attractiveness(c.quality, c.avgCheck, c.reputation, b.demand)));
   const share = marketShare(own, rivals, b.demand.stayHomeWeight);
   const total = own + rivals.reduce((a, s) => a + s, 0) + b.demand.stayHomeWeight;
-  const season = seasonOf(monthOf(Math.min(day, totalDays(b)), b), b);
+  const season = seasonOf(monthOf(day, b), b);
+  const traffic = flowSources(state, cfg, day).reduce((a, s) => a + s.people, 0) * weatherFactor(state, cfg);
   const expected =
     customersPerDay({
-      footTraffic: state.footTraffic,
+      footTraffic: traffic,
       season: season.demand,
       coffeeWantShare: b.demand.coffeeWantShare,
       awareness: state.awareness,

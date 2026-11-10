@@ -88,6 +88,8 @@ export interface EventFx {
   /** обещание вернуться к разговору через N дней */
   promiseTarget?: number;
   clearPromise?: number;
+  branchManager?: number;
+  branchEfficiency?: number;
   officializeTarget?: number;
   contractWeeks?: number;
   rentFactor?: number;
@@ -132,6 +134,7 @@ export interface EventDef {
     minTenure?: number;
     trait?: string;
     promiseDue?: boolean;
+    branch?: boolean;
     envelopeStaff?: boolean;
     target?: boolean;
     role?: string;
@@ -185,6 +188,11 @@ export const defaultConfig: GameConfig = {
 
 export function totalDays(b: Balance): number {
   return b.time.daysPerMonth * b.time.monthsPerYear;
+}
+
+/** Последний день партии: год, или больше, если игрок решил продолжить. */
+export function gameLength(state: { years?: number }, b: Balance): number {
+  return totalDays(b) * (state.years ?? 1);
 }
 
 export function round2(n: number): number {
