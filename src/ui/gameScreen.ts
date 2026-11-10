@@ -14,6 +14,7 @@ import type { DayRecord, ExpenseCategory, GameState, Pending } from '../core/sta
 import { clockTime, money, monthName, percent, price, signedMoney } from './format';
 import { audio, audioControlsHtml, type Sfx } from './audio';
 import { bindCharts, clearCharts, lineChart } from './charts';
+import { hash } from './scene/pen';
 import { nightFactor, SceneView } from './scene/sceneView';
 import { settings, saveSettings } from './settings';
 import tips from '../data/tips.json';
@@ -55,6 +56,7 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
   let chartRange = 90;
   let menuOpen = false;
   let debugOpen = false;
+  let flowsOn = false;
   let feedSeen = game.state.feed.length;
   let visitKey = '';
   let visitShown = 0;
@@ -98,7 +100,7 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
       audio.play('open');
     } else selected = id;
     renderAll();
-  });
+  }, game.state.options.location);
 
   function showTip(html: string, x: number, y: number): void {
     tipEl.innerHTML = html;
@@ -182,7 +184,15 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
     const reason = closedReason(st, cfg);
     const title = /«(.+)»/.exec(st.shopName)?.[1] ?? st.shopName;
     scene.setLook(
-      { title, signage: st.equipment.includes('signage'), pro: st.equipment.includes('machinePro'), furniture: st.equipment.includes('furniture'), closed: reason !== null },
+      {
+        title,
+        signage: st.equipment.includes('signage'),
+        pro: st.equipment.includes('machinePro'),
+        furniture: st.equipment.includes('furniture'),
+        closed: reason !== null,
+        rivalsClosed: st.competitors.map((c) => c.closedUntilDay > 0),
+        alerts: mapAlerts(),
+      },
       selected,
     );
     const v = demandView(st, cfg);
@@ -194,6 +204,25 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
       playerOpen: reason === null,
       queue: l ? l.lostQueue : 0,
     });
+    scene.setOverlay(flowsOn ? { player: v.share, rivals: st.competitors.map((c, i) => ({ name: c.name, share: v.rivalShares[i] ?? 0, closed: c.closedUntilDay > 0 })) } : null);
+    const month = monthOf(Math.min(st.day, totalDays(b)), b);
+    const season = seasonOf(month, b).id;
+    const roll = hash(st.day, st.seed & 0xffff, 40);
+    const chance = season === 'winter' ? 0.55 : season === 'summer' ? 0.12 : 0.35;
+    scene.setSeason(season === 'winter', roll < chance ? (season === 'winter' ? 'snow' : 'rain') : 'clear');
+    const visit = st.pending[0]?.kind === 'inspectionVisit';
+    const soon = st.inspections.some((i) => i.noticeDay <= st.day && i.visitDay - st.day <= 1);
+    scene.setInspector(visit ? 'door' : soon ? 'coming' : 'none');
+  }
+
+  /** Здания города, которым нужен игрок: «!» на карте. */
+  function mapAlerts(): string[] {
+    const st = s();
+    const out: string[] = [];
+    if (st.loans.some((x) => x.overdue > 0)) out.push('bank');
+    if (st.tax.due) out.push('tax');
+    if (cfg.materials.some((m) => st.inventory[m.id].reduce((a, lot) => a + lot.qty, 0) <= 0)) out.push('depot');
+    return out;
   }
 
   // ---------- боковая панель ----------
@@ -206,7 +235,7 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
       bank: (st.tax.due ? 1 : 0) + st.loans.filter((l) => l.overdue > 0).length,
     };
     const btn = (id: Tab, name: string) => `<button class="it-tab ${windowOpen && tab === id ? 'on' : ''}" data-tab="${id}" data-k="tab-${id}" aria-pressed="${windowOpen && tab === id}">${name}${badges[id] ? `<span class="gs-badge">${badges[id]}</span>` : ''}</button>`;
-    fill(dockEl, TABS.map(([id, name]) => btn(id, name)).join(''));
+    fill(dockEl, TABS.map(([id, name]) => btn(id, name)).join('') + `<span class="gs-dock-sep"></span><button class="it-tab ${flowsOn ? 'on' : ''}" data-flows data-k="flows" aria-pressed="${flowsOn}">Потоки</button>`);
     winEl.hidden = !windowOpen;
     if (!windowOpen) {
       clearCharts();
@@ -229,6 +258,25 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
       return `<header><div class="t"><span class="it-lvl">ИСТОЧНИК ПОТОКА</span><div class="ttl" style="margin-top:6px">Метро</div></div>${closeBtn}</header>
         <div class="gs-facts">${row('Поток у вашей двери', `${st.footTraffic} чел/день`)}${row('Сезон: ' + season.name.toLowerCase(), '×' + season.demand.toLocaleString('ru-RU'))}${row('Хотят кофе', percent(b.demand.coffeeWantShare))}${row('Знают о вас', percent(st.awareness))}</div>
         <div class="gs-note">Клиенты = поток × сезон × «хотят кофе» × узнаваемость × ваша доля.</div>${back}`;
+    }
+    if (id === 'bank') {
+      const debt = st.loans.reduce((a, x) => a + x.balance + x.overdue, 0);
+      return `<header><div class="t"><span class="it-lvl">ГОРОД</span><div class="ttl" style="margin-top:6px">Банк</div></div>${closeBtn}</header>
+        <div class="gs-facts">${row('Кредитная история', st.grade, '', 'grade')}${row('Кредитов', String(st.loans.length))}${row('Общий долг', money(debt), debt ? 'loss' : '')}</div>
+        <button class="it-btn it-btn--secondary" data-tab="bank" data-k="pl-go">Открыть вкладку «Банк»</button>`;
+    }
+    if (id === 'tax') {
+      const d = st.tax.due;
+      return `<header><div class="t"><span class="it-lvl">ГОРОД</span><div class="ttl" style="margin-top:6px">Налоговая</div></div>${closeBtn}</header>
+        <div class="gs-facts">${row('Режим', b.taxes.regimes[st.options.taxRegime].name, '', 'regime')}${row('К оплате', d ? money(taxOwed(st)) : 'ничего', d ? 'loss' : '')}${d ? row(d.filed ? 'Оплатить до' : 'Подать до', `${d.filed ? d.payBy : d.declareBy}-го дня`) : ''}</div>
+        <button class="it-btn it-btn--secondary" data-tab="bank" data-k="pl-go">К декларации</button>`;
+    }
+    if (id === 'depot') {
+      const sup = b.suppliers[st.supplier];
+      const next = Math.min(...cfg.materials.map((m) => m.deliveryEveryDays - ((st.day - 1) % m.deliveryEveryDays)));
+      return `<header><div class="t"><span class="it-lvl">ГОРОД</span><div class="ttl" style="margin-top:6px">Оптовый склад</div></div>${closeBtn}</header>
+        <div class="gs-facts">${row('Поставщик', sup.name)}${row('Следующая поставка', next <= 1 ? 'завтра утром' : `через ${next} дн.`)}${row('Срывы поставок', `${Math.round(sup.failPerWeek * 100)}% в неделю`)}</div>
+        <button class="it-btn it-btn--secondary" data-tab="stock" data-k="pl-go">Открыть склад</button>`;
     }
     const i = Number(id.replace('rival', ''));
     const c = st.competitors[i];
@@ -723,7 +771,8 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
     if (d.act === 'csv') return hooks.exportCsv();
     if (d.act === 'new') return hooks.newGame();
     if (d.act === 'menu') return hooks.menu();
-    if (d.menu !== undefined) menuOpen = !menuOpen;
+    if (d.flows !== undefined) flowsOn = !flowsOn;
+    else if (d.menu !== undefined) menuOpen = !menuOpen;
     else if (d.close !== undefined) windowOpen = false;
     else if (d.range) chartRange = Number(d.range);
     else if (d.tab) {
@@ -778,6 +827,7 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
   game.onDay = (r) => {
     if (r.open) {
       scene.floatText(signedMoney(r.revenue - r.cogs), r.revenue - r.cogs < 0 ? 'loss' : 'money');
+      if (cfg.materials.some((m) => r.day % m.deliveryEveryDays === 0)) scene.sendTruck();
       audio.play('coin');
     }
   };
@@ -805,6 +855,7 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
     clearTimeout(visitTimer);
     window.removeEventListener('keydown', onKey);
     game.onDay = null;
+    scene.destroy();
     tipEl.hidden = true;
   };
 }

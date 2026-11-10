@@ -1,7 +1,7 @@
 /* Библиотека изометрических моделей: здания и уличная мелочь. Всё – 2D-полигоны в плоском стиле. */
 import { FL, hash, type Pen } from './pen';
 
-export type ModelKind = 'panel' | 'brick' | 'house' | 'office' | 'metro' | 'cafePlayer' | 'cafeChain' | 'cafeCraft' | 'kiosk' | 'shop' | 'busStop' | 'mall' | 'school' | 'gas';
+export type ModelKind = 'panel' | 'brick' | 'house' | 'office' | 'metro' | 'cafePlayer' | 'cafeChain' | 'cafeCraft' | 'kiosk' | 'shop' | 'busStop' | 'mall' | 'school' | 'gas' | 'bank' | 'tax' | 'depot' | 'vacant';
 
 export interface Building {
   id?: string;
@@ -22,6 +22,10 @@ export interface ShopLook {
   pro: boolean;
   furniture: boolean;
   closed: boolean;
+  /** какие конкуренты сейчас закрыты */
+  rivalsClosed?: boolean[];
+  /** здания, требующие внимания: метка «!» */
+  alerts?: string[];
 }
 
 export type Prop =
@@ -342,8 +346,75 @@ function gas(p: Pen, b: Building): void {
   p.text('L', x + w - 0.1, y + d - 0.05 + 0.001, 45, 'АЗС', 'sign-text', 8);
 }
 
+function bank(p: Pen, b: Building): void {
+  const { x, y, w, d } = b;
+  const H = 46;
+  p.flat(x - 0.25, y + d, w + 0.5, 0.5, 2, 'f-t m-concrete');
+  p.box(x, y, w, d, 0, H, 'concrete');
+  winR(p, y + 0.2, y + d - 0.2, x + w, 16, d * 2, 15, 0.7);
+  doorL(p, x + w / 2 - 0.3, y + d, 0.6, 22, 'door glassdoor');
+  // портик: колонны и фронтон с названием
+  for (let i = 0; i <= 5; i++) {
+    const t = x + 0.2 + ((w - 0.55) * i) / 5;
+    p.box(t, y + d + 0.1, 0.18, 0.18, 2, 32, 'white');
+  }
+  p.box(x - 0.1, y + d - 0.05, w + 0.2, 0.42, 34, 8, 'plaster');
+  p.text('L', x + w / 2, y + d + 0.37 + 0.001, 36, b.title ?? 'БАНК', 'sign-dark', 10);
+  p.box(x + 0.1, y + 0.1, w - 0.2, d - 0.2, H, 3, 'roofgrey');
+  p.disc(x + w / 2, y + d / 2, H + 18, 9, 9, 'bank-coin');
+  p.line([x + w / 2, y + d / 2, H + 3], [x + w / 2, y + d / 2, H + 12], 'pole');
+}
+
+function taxOffice(p: Pen, b: Building): void {
+  const { x, y, w, d } = b;
+  const H = 4 * FL + 2;
+  p.box(x, y, w, d, 0, H, 'panel2');
+  floorsWindows(p, b, 4, 0, 2);
+  p.box(x + w / 2 - 0.9, y + d, 1.8, 0.5, 0, 24, 'concrete');
+  doorL(p, x + w / 2 - 0.3, y + d + 0.5, 0.6, 18);
+  p.box(x + w / 2 - 1, y + d - 0.05, 2, 0.65, 24, 3, 'slateroof');
+  p.box(x + 0.5, y + d - 0.02, w - 1, 0.04, H - 12, 11, 'metroroof');
+  p.text('L', x + w / 2, y + d + 0.02 + 0.001, H - 9, b.title ?? 'НАЛОГОВАЯ', 'sign-text', 8);
+  p.box(x + 0.08, y + 0.08, w - 0.16, d - 0.16, H, 3, 'roofgrey');
+  // флаг на крыше
+  p.line([x + w / 2, y + d / 2, H + 3], [x + w / 2, y + d / 2, H + 34], 'pole');
+  p.wallL(x + w / 2, x + w / 2 + 0.7, y + d / 2, H + 23, H + 29, 'f-l m-white');
+  p.wallL(x + w / 2, x + w / 2 + 0.7, y + d / 2, H + 17, H + 23, 'f-l m-red');
+}
+
+function depot(p: Pen, b: Building): void {
+  const { x, y, w, d } = b;
+  const H = 28;
+  p.box(x, y, w, d, 0, H, 'panel2');
+  // ворота с полосами
+  for (const t of [x + 0.5, x + w / 2 - 0.6, x + w - 1.7]) {
+    p.wallL(t, t + 1.2, y + d, 0, 18, 'f-l m-roofgrey');
+    for (let z = 3; z < 18; z += 3) p.line([t, y + d, z], [t + 1.2, y + d, z], 'mullion');
+  }
+  p.box(x + 0.4, y + d - 0.02, w - 0.8, 0.04, 20, 7, 'orange');
+  p.text('L', x + w / 2, y + d + 0.02 + 0.001, 21.5, b.title ?? 'ОПТОВЫЙ СКЛАД', 'sign-text', 6.5);
+  gable(p, x - 0.06, y - 0.06, w + 0.12, d + 0.12, H, 12, 'roofgrey', 'panel2', 'x');
+  p.box(x + 0.6, y + d + 0.5, 0.8, 0.8, 0, 6, 'wood');
+  p.box(x + 1.7, y + d + 0.4, 0.8, 0.8, 0, 6, 'wood');
+  p.box(x + 1, y + d + 0.6, 0.6, 0.6, 6, 6, 'wood');
+}
+
+/** Свободное помещение: показывается только при выборе места. */
+function vacant(p: Pen, b: Building): void {
+  const { x, y, w, d } = b;
+  p.box(x, y, w, d, 0, 26, 'cream');
+  winL(p, x, x + w, y + d, 4, w * 2, 14, 0);
+  p.box(x + 0.08, y + 0.08, w - 0.16, d - 0.16, 26, 2, 'roofgrey');
+  p.box(x + 0.3, y + d - 0.02, w - 0.6, 0.04, 19, 6, 'yellow');
+  p.text('L', x + w / 2, y + d + 0.02 + 0.001, 20, 'АРЕНДА', 'sign-dark', 5.5);
+}
+
 export function drawBuilding(pen: Pen, b: Building, look: ShopLook): void {
   switch (b.kind) {
+    case 'bank': return bank(pen, b);
+    case 'tax': return taxOffice(pen, b);
+    case 'depot': return depot(pen, b);
+    case 'vacant': return vacant(pen, b);
     case 'panel': return panel(pen, b);
     case 'brick': return brick(pen, b);
     case 'house': return house(pen, b);
@@ -371,6 +442,19 @@ export function drawCar(p: Pen, x: number, y: number, axis: 'x' | 'y', color: nu
   const i = 0.07;
   const [cw, cd] = axis === 'x' ? [w * 0.55, d - 2 * i] : [w - 2 * i, d * 0.55];
   p.box(x + (w - cw) / 2, y + (d - cd) / 2, cw, cd, 8, 5, 'carglass');
+}
+
+/** Фургон поставщика. */
+export function drawTruck(p: Pen, x: number, y: number, axis: 'x' | 'y'): void {
+  const [w, d] = axis === 'x' ? [1.05, 0.42] : [0.42, 1.05];
+  p.disc(x + w / 2, y + d / 2, 0, 30, 13, 'shadow');
+  if (axis === 'x') {
+    p.box(x, y, 0.72, d, 3, 16, 'white');
+    p.box(x + 0.72, y, 0.33, d, 3, 11, 'orange');
+  } else {
+    p.box(x, y, d === 1.05 ? w : d, 0.72, 3, 16, 'white');
+    p.box(x, y + 0.72, w, 0.33, 3, 11, 'orange');
+  }
 }
 
 export function drawProp(p: Pen, o: Prop): void {
@@ -428,12 +512,18 @@ export function drawProp(p: Pen, o: Prop): void {
   }
 }
 
-// ---------- район 20×20 ----------
+// ---------- город ----------
 
+/** ядро, нарисованное вручную: 0..MAP по обеим осям */
 export const MAP = 33;
-/** полосы проезжей части и тротуары */
-export const ROADS = [9, 22];
+/** весь город: вокруг ядра – кварталы-спрайты */
+export const CITY_MIN = -27;
+export const CITY_MAX = 60;
+/** полосы проезжей части */
+export const ROADS = [-17, -4, 9, 22, 35, 48];
+/** тротуары, по которым ходят гости кофеен */
 export const WALKS = [8.5, 11.5, 21.5, 24.5];
+export const ALL_WALKS = ROADS.flatMap((r) => [r - 0.5, r + 2.5]);
 
 const isRoad = (v: number) => ROADS.some((r) => v === r || v === r + 1);
 const isWalk = (v: number) => ROADS.some((r) => v === r - 1 || v === r + 2);
@@ -450,24 +540,19 @@ export function ground(x: number, y: number): string {
   return (x + y) % 2 ? 'grass-2' : 'grass';
 }
 
-export const PLAYER_SPOT: Building = { id: 'player', kind: 'cafePlayer', x: 5, y: 6, w: 3, d: 2 };
-
 export const BUILDINGS: Building[] = [
   // северо-запад: квартал игрока
   { kind: 'panel', x: 0, y: 0, w: 4, d: 2, floors: 7 },
   { kind: 'panel', x: 5, y: 1, w: 2, d: 3, floors: 9, variant: 1 },
   { kind: 'brick', x: 1, y: 5, w: 3, d: 3, floors: 3 },
   { kind: 'house', x: 0, y: 3, w: 2, d: 2, variant: 2 },
-  PLAYER_SPOT,
   // северо-восток: метро и сеть
   { id: 'metro', kind: 'metro', x: 12, y: 6, w: 2, d: 2 },
   { kind: 'kiosk', x: 14, y: 7, w: 1, d: 1 },
-  { id: 'rival0', kind: 'cafeChain', x: 15, y: 5, w: 3, d: 3 },
   { kind: 'office', x: 13, y: 1, w: 3, d: 3, floors: 9 },
   { kind: 'panel', x: 17, y: 0, w: 3, d: 2, floors: 6 },
   { kind: 'brick', x: 18, y: 6, w: 2, d: 2, floors: 2 },
   // юго-запад: авторская кофейня и частный сектор
-  { id: 'rival1', kind: 'cafeCraft', x: 6, y: 12, w: 2, d: 2 },
   { kind: 'shop', x: 2, y: 12, w: 3, d: 2, variant: 0 },
   { kind: 'house', x: 6, y: 15, w: 2, d: 2, variant: 0 },
   { kind: 'house', x: 3, y: 16, w: 2, d: 2, variant: 1 },
@@ -482,15 +567,14 @@ export const BUILDINGS: Building[] = [
   { kind: 'office', x: 25, y: 1, w: 3, d: 3, floors: 12 },
   { kind: 'panel', x: 29, y: 0, w: 4, d: 2, floors: 8, variant: 1 },
   { kind: 'brick', x: 29, y: 4, w: 3, d: 3, floors: 4 },
-  { kind: 'shop', x: 25, y: 5, w: 3, d: 2, variant: 1, title: 'БАНК' },
+  { kind: 'shop', x: 25, y: 6, w: 3, d: 2, variant: 1, title: 'ОПТИКА' },
   { kind: 'mall', x: 25, y: 12, w: 6, d: 5, title: 'ТЦ ГАЛЕРЕЯ' },
-  { kind: 'panel', x: 25, y: 18, w: 3, d: 2, floors: 5 },
+  { id: 'tax', kind: 'tax', x: 25, y: 18, w: 4, d: 3 },
   { kind: 'house', x: 30, y: 18, w: 2, d: 2, variant: 3 },
   // юг: школа и жилые кварталы
   { kind: 'school', x: 1, y: 25, w: 5, d: 3 },
-  { kind: 'house', x: 1, y: 30, w: 2, d: 2, variant: 2 },
-  { kind: 'house', x: 4, y: 30, w: 2, d: 2, variant: 0 },
-  { kind: 'panel', x: 12, y: 25, w: 3, d: 2, floors: 9 },
+  { id: 'depot', kind: 'depot', x: 1, y: 29.5, w: 6, d: 3 },
+  { id: 'bank', kind: 'bank', x: 11.5, y: 25, w: 4, d: 3 },
   { kind: 'panel', x: 16, y: 25, w: 4, d: 2, floors: 7, variant: 1 },
   { kind: 'brick', x: 12, y: 29, w: 3, d: 3, floors: 3 },
   { kind: 'brick', x: 16, y: 29, w: 3, d: 3, floors: 2 },
@@ -542,4 +626,81 @@ function generatedProps(): Prop[] {
     if (i > 20 && i !== 26) out.push({ kind: 'lamp', x: 8.85, y: i + 0.5 }, { kind: 'lamp', x: i + 0.5, y: 8.85 });
   }
   return out;
+}
+
+// ---------- место кофейни ----------
+
+export type Pt = [number, number];
+export type LocationKey = 'suburb' | 'metro' | 'center';
+
+interface Pt2 { x: number; y: number; w: number; d: number }
+interface Site extends Pt2 { door: Pt; step: Pt }
+export interface FlowSource { name: string; at: Pt; weight: number }
+interface Plan { player: Site; rival0: Site; rival1: Site; sources: FlowSource[]; camera: Pt }
+
+/** Три помещения на карте: у каждого своё окружение, конкуренты и источники людей. */
+const PLANS: Record<LocationKey, Plan> = {
+  metro: {
+    player: { x: 5, y: 6, w: 3, d: 2, door: [6.5, 8.5], step: [6.5, 8.05] },
+    rival0: { x: 15, y: 5, w: 3, d: 3, door: [16.5, 8.5], step: [16.5, 8.05] },
+    rival1: { x: 6, y: 12, w: 2, d: 2, door: [8.5, 13.5], step: [8.05, 13.5] },
+    sources: [{ name: 'Метро', at: [13, 8.5], weight: 0.45 }, { name: 'Остановка', at: [14, 11.5], weight: 0.15 }],
+    camera: [9.75, 7],
+  },
+  center: {
+    player: { x: 25, y: 6, w: 3, d: 2, door: [26.5, 8.5], step: [26.5, 8.05] },
+    rival0: { x: 29, y: 5, w: 3, d: 3, door: [30.5, 8.5], step: [30.5, 8.05] },
+    rival1: { x: 19, y: 15, w: 2, d: 2, door: [21.5, 16.5], step: [21.05, 16.5] },
+    sources: [{ name: 'Торговый центр', at: [24.5, 14.5], weight: 0.35 }, { name: 'Бизнес-центр', at: [24.5, 2.5], weight: 0.3 }],
+    camera: [27, 8],
+  },
+  suburb: {
+    player: { x: 3, y: 19, w: 3, d: 2, door: [4.5, 21.5], step: [4.5, 21.05] },
+    rival0: { x: 17, y: 18, w: 3, d: 3, door: [18.5, 21.5], step: [18.5, 21.05] },
+    rival1: { x: 6, y: 25, w: 2, d: 2, door: [8.5, 26.5], step: [8.05, 26.5] },
+    sources: [{ name: 'Дворы', at: [8.5, 18.5], weight: 0.3 }, { name: 'Школа', at: [3.5, 24.5], weight: 0.2 }],
+    camera: [8, 20],
+  },
+};
+
+export interface Layout {
+  buildings: Building[];
+  props: Prop[];
+  doors: Record<string, Pt>;
+  steps: Record<string, Pt>;
+  sources: FlowSource[];
+  camera: Pt;
+}
+
+export const LOCATION_KEYS = Object.keys(PLANS) as LocationKey[];
+
+/** Собирает карту под выбранное помещение. В режиме выбора остальные помещения показаны как свободные. */
+export function layoutFor(location: LocationKey, choosing = false): Layout {
+  const plan = PLANS[location];
+  const placed: Building[] = [
+    { id: 'player', kind: 'cafePlayer', x: plan.player.x, y: plan.player.y, w: 3, d: 2 },
+    { id: 'rival0', kind: 'cafeChain', ...rect(plan.rival0) },
+    { id: 'rival1', kind: 'cafeCraft', ...rect(plan.rival1) },
+  ];
+  for (const k of LOCATION_KEYS) {
+    if (k === location) continue;
+    const p = PLANS[k].player;
+    if (choosing) placed.push({ id: `lot-${k}`, kind: 'vacant', x: p.x, y: p.y, w: 3, d: 2 });
+    else if (k === 'metro') placed.push({ kind: 'shop', x: p.x, y: p.y, w: 3, d: 2, variant: 2, title: 'ПРОДУКТЫ' });
+  }
+  const hit = (b: { x: number; y: number; w: number; d: number }, c: Building) => b.x < c.x + c.w && c.x < b.x + b.w && b.y < c.y + c.d && c.y < b.y + b.d;
+  const base = BUILDINGS.filter((b) => !placed.some((c) => hit(b, c)));
+  const props = PROPS.filter((o) => !placed.some((c) => o.x > c.x - 0.4 && o.x < c.x + c.w + 0.4 && o.y > c.y - 0.4 && o.y < c.y + c.d + 0.4));
+  return {
+    buildings: [...base, ...placed],
+    props,
+    doors: { player: plan.player.door, rival0: plan.rival0.door, rival1: plan.rival1.door },
+    steps: { player: plan.player.step, rival0: plan.rival0.step, rival1: plan.rival1.step },
+    sources: plan.sources,
+    camera: plan.camera,
+  };
+}
+
+function rect(s: Pt2): Pt2 {
+  return { x: s.x, y: s.y, w: s.w, d: s.d };
 }

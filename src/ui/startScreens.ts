@@ -4,6 +4,8 @@ import { createInitialState, defaultOptions, rollDefects, type NewGameOptions } 
 import { money, monthName } from './format';
 import { monthOf } from '../core/calendar';
 import { audio, audioControlsHtml } from './audio';
+import type { LocationKey } from './scene/models';
+import { SceneView } from './scene/sceneView';
 import { saveSettings, settings } from './settings';
 
 export interface MenuHooks {
@@ -100,6 +102,8 @@ export function mountWizard(root: HTMLElement, cfg: GameConfig, seed: number, on
       case 3: {
         const d = defects[o.location];
         return `<div class="ttl">Помещение</div>
+        <div class="gs-note">Кликните по зданию с меткой или выберите ниже. Колесо – зум, перетаскивание – обзор.</div>
+        <div class="st-map-slot"></div>
         <div class="st-opts">${(Object.keys(b.locations) as LocationId[]).map((id) => { const l = b.locations[id]; return opt('location', id, o.location === id, l.name, `Аренда ${money(l.rent)}/мес · поток ${l.footTraffic} чел/день · ${l.seats} мест`); }).join('')}</div>
         <div class="gs-note">Депозит – 2 месяца аренды, договор на год. У каждого помещения может быть скрытый дефект.</div>
         ${opt('inspect', '1', o.premisesInspection, `Заказать осмотр, ${money(b.costs.premisesInspection)}`, o.premisesInspection ? (d ? `Найдено: ${DEFECT_NAME[d]}. Полный ремонт устранит.` : 'Дефектов не найдено.') : 'Покажет, есть ли дефект у выбранного помещения')}`;
@@ -121,6 +125,45 @@ export function mountWizard(root: HTMLElement, cfg: GameConfig, seed: number, on
         <div class="gs-note">Цель – продержаться ${totalDays(b)} дней: три месяца подряд в плюсе, без просрочек, репутация не ниже 4,0. Налоги не списываются сами – смотрите вкладку «Сроки».</div>`;
       }
     }
+  }
+
+  let mapHost: HTMLElement | null = null;
+  let mapScene: SceneView | null = null;
+  let mapFrame = 0;
+
+  function closeMap(): void {
+    cancelAnimationFrame(mapFrame);
+    mapFrame = 0;
+    mapScene?.destroy();
+    mapScene = null;
+    mapHost = null;
+  }
+
+  function mountMap(): void {
+    const slot = root.querySelector('.st-map-slot');
+    if (!slot) return;
+    if (!mapHost) {
+      mapHost = document.createElement('div');
+      mapHost.className = 'st-map';
+      slot.replaceWith(mapHost);
+      mapScene = new SceneView(mapHost, (id) => {
+        if (id?.startsWith('lot-')) {
+          o.location = id.slice(4) as LocationId;
+          render();
+        }
+      }, o.location, true);
+      let prev = performance.now();
+      const tick = (now: number) => {
+        if (!mapScene) return;
+        mapScene.setLook({ title: 'Ваша кофейня', signage: false, pro: false, furniture: false, closed: false }, 'player');
+        mapScene.setFlow({ traffic: b.locations[o.location].footTraffic, pPlayer: 0.08, pRivals: [0.08, 0.05], playerOpen: true, queue: 0 });
+        mapScene.frame(Math.min(0.1, (now - prev) / 1000), 1, 12);
+        prev = now;
+        mapFrame = requestAnimationFrame(tick);
+      };
+      mapFrame = requestAnimationFrame(tick);
+    } else slot.replaceWith(mapHost);
+    mapScene!.setLocation(o.location as LocationKey);
   }
 
   function render(): void {
@@ -148,6 +191,8 @@ export function mountWizard(root: HTMLElement, cfg: GameConfig, seed: number, on
         el.setSelectionRange(el.value.length, el.value.length);
       }
     }
+    if (step === 3) mountMap();
+    else if (mapHost) closeMap();
   }
 
   root.onclick = (e) => {
@@ -158,6 +203,7 @@ export function mountWizard(root: HTMLElement, cfg: GameConfig, seed: number, on
     const d = t.dataset;
     if (d.nav === 'back') {
       if (step === 0) {
+        closeMap();
         root.onclick = null;
         root.oninput = null;
         return onBack();
@@ -165,6 +211,7 @@ export function mountWizard(root: HTMLElement, cfg: GameConfig, seed: number, on
       step--;
     } else if (d.nav === 'next') step++;
     else if (d.nav === 'start') {
+      closeMap();
       root.onclick = null;
       root.oninput = null;
       return onStart(o);
