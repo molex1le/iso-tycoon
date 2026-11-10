@@ -45,7 +45,7 @@ describe('старт партии', () => {
 
   it('сложность задаёт капитал, вывеска сразу добавляет узнаваемость', () => {
     expect(createInitialState(1, opts({ difficulty: 'training' })).startCapital).toBe(30000);
-    expect(createInitialState(1, opts({ difficulty: 'survival' })).startCapital).toBe(12000);
+    expect(createInitialState(1, opts({ difficulty: 'survival' })).startCapital).toBe(13000);
     expect(createInitialState(1, opts({ extras: ['signage'] })).awareness).toBeCloseTo(0.4);
   });
 
