@@ -132,8 +132,8 @@
     },
     "survival": {
       "name": "Выживание",
-      "startCapital": 12000,
-      "unplannedMultiplier": 1.5,
+      "startCapital": 13000,
+      "unplannedMultiplier": 1.4,
       "unplannedNoticeDays": 0,
       "formalists": true,
       "text": "Мало денег, внезапные проверки без уведомления",
