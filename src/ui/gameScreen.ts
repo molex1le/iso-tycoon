@@ -12,10 +12,15 @@ import { closedReason, demandView, hoursPerWeek } from '../core/shop';
 import { loyaltyOf } from '../core/staff';
 import type { DayRecord, ExpenseCategory, GameState, Pending } from '../core/state';
 import { clockTime, money, monthName, percent, price, signedMoney } from './format';
-import { SceneView } from './scene/sceneView';
+import { audio, audioControlsHtml, type Sfx } from './audio';
+import { bindCharts, clearCharts, lineChart } from './charts';
+import { nightFactor, SceneView } from './scene/sceneView';
+import { settings, saveSettings } from './settings';
+import tips from '../data/tips.json';
+import { advise } from '../core/advisor';
 
-type Tab = 'overview' | 'prices' | 'staff' | 'stock' | 'checks' | 'gear' | 'bank' | 'dates';
-const TABS: [Tab, string][] = [['overview', 'Обзор'], ['prices', 'Цены'], ['staff', 'Люди'], ['stock', 'Склад'], ['checks', 'Проверки'], ['gear', 'Техника'], ['bank', 'Банк'], ['dates', 'Сроки']];
+type Tab = 'overview' | 'finance' | 'prices' | 'staff' | 'stock' | 'checks' | 'gear' | 'bank' | 'dates' | 'journal';
+const TABS: [Tab, string][] = [['overview', 'Обзор'], ['finance', 'Финансы'], ['prices', 'Цены'], ['staff', 'Люди'], ['stock', 'Склад'], ['checks', 'Проверки'], ['gear', 'Техника'], ['bank', 'Банк'], ['dates', 'Сроки'], ['journal', 'Журнал']];
 
 const STAR = '<svg class="it-ico" viewBox="0 0 20 20" style="color:var(--coin-shade)"><path d="m10 1.5 2.6 5.3 5.9.9-4.3 4.1 1 5.8L10 14.9l-5.2 2.7 1-5.8L1.5 7.7l5.9-.9z"/></svg>';
 const PERSON = '<svg class="it-ico" viewBox="0 0 20 20" style="color:var(--ink-muted)"><circle cx="10" cy="6" r="3.5"/><path d="M3 18c0-4 3-6.5 7-6.5s7 2.5 7 6.5z"/></svg>';
@@ -27,7 +32,9 @@ const OUTCOMES = {
   criminal: ['Уголовное дело', 'Инспектор записал разговор. Взятка должностному лицу – конец игры.'],
 } as const;
 const stars = (n: number) => n.toFixed(1).replace('.', ',');
-const row = (label: string, value: string, cls = '') => `<div class="it-row"><span class="muted">${label}</span><span class="num ${cls}">${value}</span></div>`;
+type TipKey = keyof typeof tips;
+const q = (key: TipKey) => `<span class="gs-q" tabindex="0" role="note" aria-label="${tips[key]}" data-tip="${tips[key]}">?</span>`;
+const row = (label: string, value: string, cls = '', tip?: TipKey) => `<div class="it-row"><span class="muted">${label}${tip ? q(tip) : ''}</span><span class="num ${cls}">${value}</span></div>`;
 const bar = (v: number, cls = '') => `<div class="it-bar ${cls}"><i style="width:${Math.max(0, Math.min(100, Math.round(v)))}%"></i></div>`;
 
 export interface ScreenHooks {
@@ -43,12 +50,16 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
   const b = cfg.balance;
   let tab: Tab = 'overview';
   let agencyTab: AgencyId = 'ses';
-  let selected: string | null = 'player';
+  let selected: string | null = null;
+  let windowOpen = false;
+  let chartRange = 90;
   let menuOpen = false;
+  let debugOpen = false;
   let feedSeen = game.state.feed.length;
   let visitKey = '';
   let visitShown = 0;
   let visitTimer = 0;
+  let shownPending = '';
   let alive = true;
 
   root.innerHTML = `
@@ -57,8 +68,13 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
     <div class="gs-top"><div class="it-panel it-hud" data-ref="hud"></div></div>
     <div class="gs-toasts" data-ref="toasts" aria-live="polite"></div>
     <div class="it-panel gs-debug" data-ref="menu" hidden></div>
-    <div class="it-panel it-bp gs-side" data-ref="side"></div>
-    <div class="gs-hint">Пробел – пауза · 1 / 2 / 3 – скорость · колесо – зум · F2 – меню</div>
+    <div class="it-panel gs-place" data-ref="place" hidden></div>
+    <div class="it-panel gs-win" data-ref="win" role="dialog" aria-label="Управление кофейней" hidden>
+      <nav class="gs-nav" data-ref="nav"></nav>
+      <div class="gs-win-main"><div class="gs-win-head" data-ref="head"></div><div class="gs-win-body" data-ref="side"></div></div>
+    </div>
+    <div class="it-panel gs-dock" data-ref="dock"></div>
+    <div class="gs-tip" data-ref="tip" hidden></div>
     <div class="gs-end" data-ref="modal" hidden></div>
   </div>`;
   const ref = <T extends HTMLElement>(name: string): T => root.querySelector<T>(`[data-ref="${name}"]`)!;
@@ -68,9 +84,48 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
   const menuEl = ref('menu');
   const modalEl = ref('modal');
   const toastsEl = ref('toasts');
+  const placeEl = ref('place');
+  const winEl = ref('win');
+  const navEl = ref('nav');
+  const headEl = ref('head');
+  const dockEl = ref('dock');
+  const tipEl = ref('tip');
   const scene = new SceneView(ref('map'), (id) => {
-    if (id) selected = id;
+    if (id === 'player') {
+      selected = null;
+      windowOpen = true;
+      tab = 'overview';
+      audio.play('open');
+    } else selected = id;
     renderAll();
+  });
+
+  function showTip(html: string, x: number, y: number): void {
+    tipEl.innerHTML = html;
+    tipEl.hidden = false;
+    const r = tipEl.getBoundingClientRect();
+    tipEl.style.left = `${Math.max(8, Math.min(innerWidth - r.width - 8, x + 14))}px`;
+    tipEl.style.top = `${Math.max(8, y + 18 + r.height > innerHeight ? y - r.height - 12 : y + 18)}px`;
+  }
+  const hideTip = () => {
+    tipEl.hidden = true;
+  };
+  bindCharts(sideEl, showTip, hideTip);
+  screen.addEventListener('pointerover', (e) => {
+    const t = (e.target as Element).closest<HTMLElement>('[data-tip]');
+    if (t) showTip(t.dataset.tip!, e.clientX, e.clientY);
+  });
+  screen.addEventListener('pointerout', (e) => {
+    if ((e.target as Element).closest('[data-tip]')) hideTip();
+  });
+  screen.addEventListener('focusin', (e) => {
+    const t = (e.target as Element).closest<HTMLElement>('[data-tip]');
+    if (!t) return;
+    const r = t.getBoundingClientRect();
+    showTip(t.dataset.tip!, r.right, r.bottom);
+  });
+  screen.addEventListener('focusout', (e) => {
+    if ((e.target as Element).closest('[data-tip]')) hideTip();
   });
 
   const last = (): DayRecord | undefined => game.state.history[game.state.history.length - 1];
@@ -98,12 +153,12 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
     const btn = (v: Speed, text: string, aria = '') =>
       `<button data-speed="${v}" data-k="sp${v}" class="${speed === v ? 'on' : ''}" ${aria ? `aria-label="${aria}"` : ''} aria-pressed="${speed === v}">${text}</button>`;
     fill(hudEl, `
-      <div class="it-stat"><i class="it-coin"></i><div><div class="lbl">Баланс</div><div class="v ${st.cash < 0 ? 'loss' : ''}">${money(st.cash)}</div></div></div>
-      <div class="it-stat"><div><div class="lbl">Прибыль / день</div><div class="v ${l ? (l.profit < 0 ? 'loss' : 'money') : 'muted'}">${l ? signedMoney(l.profit) : '–'}</div></div></div>
-      <div class="it-stat"><div><div class="lbl">Подушка</div><div class="v ${cushion < 21 ? 'loss' : ''}">${cushion === Infinity ? 'в плюсе' : cushion + ' дн.'}</div></div></div>
-      <div class="it-stat">${STAR}<div><div class="lbl">Репутация</div><div class="v">${stars(st.reputation)}</div></div></div>
+      <div class="it-stat" data-tip="${tips.cash}"><i class="it-coin"></i><div><div class="lbl">Баланс</div><div class="v ${st.cash < 0 ? 'loss' : ''}">${money(st.cash)}</div></div></div>
+      <div class="it-stat" data-tip="${tips.profit}"><div><div class="lbl">Прибыль / день</div><div class="v ${l ? (l.profit < 0 ? 'loss' : 'money') : 'muted'}">${l ? signedMoney(l.profit) : '–'}</div></div></div>
+      <div class="it-stat" data-tip="${tips.cushion}"><div><div class="lbl">Подушка</div><div class="v ${cushion < 21 ? 'loss' : ''}">${cushion === Infinity ? 'в плюсе' : cushion + ' дн.'}</div></div></div>
+      <div class="it-stat" data-tip="${tips.reputation}">${STAR}<div><div class="lbl">Репутация</div><div class="v">${stars(st.reputation)}</div></div></div>
       <div class="it-stat">${PERSON}<div><div class="lbl">Персонал</div><div class="v">${st.employees.length}</div></div></div>
-      <div class="it-stat gs-opt" title="${next ? next.title : ''}"><div><div class="lbl">Ближайший срок</div><div class="v ${next && next.day - st.day <= 3 ? 'warn' : ''}">${next ? (next.day <= st.day ? 'сегодня' : 'через ' + (next.day - st.day) + ' дн.') : '–'}</div></div></div>
+      <div class="it-stat gs-opt" data-tip="${next ? next.title : ''}"><div><div class="lbl">Ближайший срок</div><div class="v ${next && next.day - st.day <= 3 ? 'warn' : ''}">${next ? (next.day <= st.day ? 'сегодня' : 'через ' + (next.day - st.day) + ' дн.') : '–'}</div></div></div>
       <div class="spacer"></div>
       <div class="it-date"><div class="lbl">${seasonOf(month, b).name} · день ${day} из ${totalDays(b)}</div><div style="font-weight:600">${dayOfMonth(day, b)} · ${monthName(month)} · <span class="num" data-ref="time"></span></div></div>
       <div class="it-speed" role="group" aria-label="Скорость">${btn(0, '❚❚', 'Пауза')}${btn(1, '1×')}${btn(2, '2×')}${btn(3, '3×')}</div>
@@ -144,30 +199,53 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
   // ---------- боковая панель ----------
   function renderSide(): void {
     const st = s();
-    if (selected && selected !== 'player') return fill(sideEl, otherHtml(selected));
+    placeEl.hidden = !selected;
+    if (selected) fill(placeEl, otherHtml(selected));
+    const badges: Partial<Record<Tab, number>> = {
+      checks: st.inspections.filter((i) => i.noticeDay <= st.day).length,
+      bank: (st.tax.due ? 1 : 0) + st.loans.filter((l) => l.overdue > 0).length,
+    };
+    const btn = (id: Tab, name: string) => `<button class="it-tab ${windowOpen && tab === id ? 'on' : ''}" data-tab="${id}" data-k="tab-${id}" aria-pressed="${windowOpen && tab === id}">${name}${badges[id] ? `<span class="gs-badge">${badges[id]}</span>` : ''}</button>`;
+    fill(dockEl, TABS.map(([id, name]) => btn(id, name)).join(''));
+    winEl.hidden = !windowOpen;
+    if (!windowOpen) {
+      clearCharts();
+      return;
+    }
+    fill(navEl, TABS.map(([id, name]) => btn(id, name)).join(''));
     const loc = b.locations[st.options.location];
-    const body = { overview: overviewHtml, prices: pricesHtml, staff: staffHtml, stock: stockHtml, checks: checksHtml, gear: gearHtml, bank: bankHtml, dates: datesHtml }[tab]();
-    fill(sideEl, `
-      <header><div class="t"><span class="it-lvl">${b.forms[st.options.form].name} · ${loc.name.toUpperCase()}</span><div class="ttl" style="margin-top:6px">${st.shopName}</div></div></header>
-      <div class="it-tabs gs-tabs" role="tablist">${TABS.map(([id, name]) => `<button class="it-tab ${tab === id ? 'on' : ''}" role="tab" aria-selected="${tab === id}" data-tab="${id}" data-k="tab-${id}">${name}</button>`).join('')}</div>
-      ${body}`);
+    fill(headEl, `<div class="grow"><span class="it-lvl">${b.forms[st.options.form].name} · ${loc.name.toUpperCase()}</span> <span class="ttl">${st.shopName}</span></div><button class="it-btn it-btn--ghost it-btn--icon" data-close data-k="close" aria-label="Закрыть">✕</button>`);
+    const flow: Partial<Record<Tab, boolean>> = { overview: false, finance: false, journal: false };
+    const body = { overview: overviewHtml, finance: financeHtml, prices: pricesHtml, staff: staffHtml, stock: stockHtml, checks: checksHtml, gear: gearHtml, bank: bankHtml, dates: datesHtml, journal: journalHtml }[tab]();
+    fill(sideEl, flow[tab] === false ? body : `<div class="gs-cols">${body}</div>`);
   }
 
   function otherHtml(id: string): string {
     const st = s();
-    const back = `<button class="it-btn it-btn--secondary" data-select="player" data-k="back">← Моя кофейня</button>`;
+    const back = '';
+    const closeBtn = `<button class="it-btn it-btn--ghost it-btn--icon" data-select="" data-k="pl-close" aria-label="Закрыть">✕</button>`;
     if (id === 'metro') {
       const season = seasonOf(monthOf(Math.min(st.day, totalDays(b)), b), b);
-      return `<header><div class="t"><span class="it-lvl">ИСТОЧНИК ПОТОКА</span><div class="ttl" style="margin-top:6px">Метро</div></div></header>
+      return `<header><div class="t"><span class="it-lvl">ИСТОЧНИК ПОТОКА</span><div class="ttl" style="margin-top:6px">Метро</div></div>${closeBtn}</header>
         <div class="gs-facts">${row('Поток у вашей двери', `${st.footTraffic} чел/день`)}${row('Сезон: ' + season.name.toLowerCase(), '×' + season.demand.toLocaleString('ru-RU'))}${row('Хотят кофе', percent(b.demand.coffeeWantShare))}${row('Знают о вас', percent(st.awareness))}</div>
         <div class="gs-note">Клиенты = поток × сезон × «хотят кофе» × узнаваемость × ваша доля.</div>${back}`;
     }
     const i = Number(id.replace('rival', ''));
     const c = st.competitors[i];
     const v = demandView(st, cfg);
-    return `<header><div class="t"><span class="it-lvl">КОНКУРЕНТ</span><div class="ttl" style="margin-top:6px">«${c.name}»</div></div></header>
+    return `<header><div class="t"><span class="it-lvl">КОНКУРЕНТ</span><div class="ttl" style="margin-top:6px">«${c.name}»</div></div>${closeBtn}</header>
       <div class="gs-facts">${row('Средний чек', price(c.avgCheck))}${row('Качество', c.quality.toLocaleString('ru-RU'))}${row('Репутация', stars(c.reputation))}${row('Доля прохожих', percent(v.rivalShares[i]))}${row('Ваша доля', percent(v.share))}</div>
       <div class="gs-note">Ваш чек ${price(v.check)}, качество ${v.quality.toFixed(2).replace('.', ',')}.</div>${back}`;
+  }
+
+  function adviceHtml(): string {
+    if (!settings.hints) return '';
+    const list = advise(s(), cfg);
+    return `<div class="gs-sec"><div class="lbl">Что сделать сейчас</div>${
+      list.length
+        ? list.map((a) => `<button class="gs-advice ${a.tone}" data-tab="${a.tab}" data-k="adv-${a.title}"><div><b>${a.title}</b><span>${a.text}</span></div></button>`).join('')
+        : '<div class="gs-note">Срочных дел нет. Загляните в «Финансы».</div>'
+    }</div>`;
   }
 
   function overviewHtml(): string {
@@ -175,24 +253,89 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
     const l = last();
     const v = demandView(st, cfg);
     const cushion = cushionDays(st, cfg);
-    const common = row('Узнаваемость', percent(st.awareness)) + row('Качество', v.quality.toFixed(2).replace('.', ',')) + row('Постоянные расходы', money(dailyFixed(st, cfg)) + ' / день') + row('Подушка', cushion === Infinity ? 'в плюсе' : cushion + ' дн.', cushion < 21 ? 'loss' : '');
-    if (!l) return `<div class="gs-note">Идёт первый день. Касса закрывается в полночь – тогда здесь появятся выручка, клиенты и загрузка.</div><div class="gs-facts">${row('Ждём клиентов в день', '≈ ' + Math.round(v.expected))}${common}</div>`;
-    const load = l.capacity > 0 ? l.served / l.capacity : 0;
-    const week = st.history.slice(-7);
-    const max = Math.max(1, ...week.map((r) => Math.abs(r.profit)));
-    const bars = week.map((r) => `<i class="${r.profit < 0 ? 'neg' : ''}" style="height:${Math.max(4, Math.round((Math.abs(r.profit) / max) * 100))}%" title="День ${r.day}: ${signedMoney(r.profit)}"></i>`).join('');
-    const lost = l.lostQueue + l.lostStock;
-    return `
-      <div class="lbl">Вчера · день ${l.day}${l.open ? '' : ' · закрыто'}</div>
-      <div class="it-grid">
-        <div class="it-cell"><span class="lbl">Выручка</span><span class="v">${money(l.revenue)}</span></div>
-        <div class="it-cell"><span class="lbl">Сырьё</span><span class="v">${money(l.cogs + l.waste)}</span></div>
-        <div class="it-cell"><span class="lbl">Прибыль</span><span class="v ${l.profit < 0 ? 'loss' : 'money'}">${signedMoney(l.profit)}</span></div>
-      </div>
-      <div><div class="it-row" style="margin-bottom:6px"><span class="lbl grow">Загрузка</span><span class="num">${percent(load)}</span></div>${bar(load * 100)}</div>
-      <div><div class="lbl" style="margin-bottom:6px">Прибыль за ${week.length} дн. (с долей аренды и зарплат)</div><div class="it-spark" style="height:44px">${bars}</div></div>
-      <div class="gs-facts">${row('Клиентов', l.served + (lost ? ` <span class="loss">(ушли: ${lost})</span>` : ''))}${row('Доля среди прохожих', percent(l.share))}${common}</div>
-      ${closedNote()}${reviewsHtml()}`;
+    const facts = row('Узнаваемость', percent(st.awareness), '', 'awareness') + row('Качество', v.quality.toFixed(2).replace('.', ','), '', 'quality') + row('Постоянные расходы', money(dailyFixed(st, cfg)) + ' / день', '', 'fixed') + row('Доля среди прохожих', percent(v.share), '', 'share') + row('Средний чек', price(v.check), '', 'check');
+    const tile = (label: string, value: string, cls = '', tip?: TipKey) => `<div class="gs-tile"><div class="lbl">${label}${tip ? q(tip) : ''}</div><div class="v ${cls}">${value}</div></div>`;
+    const lost = l ? l.lostQueue + l.lostStock : 0;
+    const load = l && l.capacity > 0 ? l.served / l.capacity : 0;
+    const tiles = l
+      ? tile('Выручка вчера', money(l.revenue)) + tile('Прибыль вчера', signedMoney(l.profit), l.profit < 0 ? 'loss' : 'money', 'profit') + tile('Клиентов', String(l.served)) + tile('Ушли без кофе', String(lost), lost ? 'loss' : '') + tile('Подушка', cushion === Infinity ? 'в плюсе' : cushion + ' дн.', cushion < 21 ? 'loss' : '', 'cushion')
+      : tile('Ждём клиентов', '≈ ' + Math.round(v.expected)) + tile('Подушка', cushion === Infinity ? 'в плюсе' : cushion + ' дн.', cushion < 21 ? 'loss' : '', 'cushion');
+    const data = series(30);
+    return `<div class="gs-sec"><div class="gs-tiles">${tiles}</div>${closedNote()}
+      <div class="gs-grid2">
+        <div class="gs-sec">${lineChart('ov-cash', { title: 'Деньги на счёте, 30 дней', x: data.x, series: [{ name: 'Деньги', color: 'var(--c2)', values: data.cash }], format: short })}
+          ${l ? `<div><div class="it-row" style="margin-bottom:6px"><span class="lbl grow">Загрузка${q('load')}</span><span class="num">${percent(load)}</span></div>${bar(load * 100)}</div>` : ''}
+          <div class="gs-facts">${facts}</div></div>
+        <div class="gs-sec">${adviceHtml()}${reviewsHtml()}</div>
+      </div></div>`;
+  }
+
+  /** Истории по корзинам: на длинном интервале точки усредняются. */
+  function series(range: number) {
+    const h = s().history.slice(-range);
+    const size = Math.max(1, Math.ceil(h.length / 45));
+    const out = { x: [] as number[], cash: [] as number[], revenue: [] as number[], costs: [] as number[], served: [] as number[], lost: [] as number[], you: [] as number[], r0: [] as number[], r1: [] as number[], rep: [] as number[] };
+    for (let i = 0; i < h.length; i += size) {
+      const part = h.slice(i, i + size);
+      const end = part[part.length - 1];
+      const avg = (f: (r: DayRecord) => number) => Math.round((part.reduce((a, r) => a + f(r), 0) / part.length) * 100) / 100;
+      out.x.push(end.day);
+      out.cash.push(end.cash);
+      out.revenue.push(avg((r) => r.revenue));
+      out.costs.push(avg((r) => r.revenue - r.profit));
+      out.served.push(avg((r) => r.served));
+      out.lost.push(avg((r) => r.lostQueue + r.lostStock));
+      out.you.push(avg((r) => r.share * 100));
+      out.r0.push(avg((r) => (r.rivalShares[0] ?? 0) * 100));
+      out.r1.push(avg((r) => (r.rivalShares[1] ?? 0) * 100));
+      out.rep.push(end.reputation);
+    }
+    return out;
+  }
+
+  const short = (v: number) => {
+    const sign = v < 0 ? '−' : '';
+    const a = Math.abs(v);
+    return sign + '$' + (a >= 10000 ? Math.round(a / 1000) + ' тыс.' : Math.round(a).toLocaleString('ru-RU'));
+  };
+
+  function financeHtml(): string {
+    const st = s();
+    const d = series(chartRange);
+    const ranges = ([[30, '30 дней'], [90, '90 дней'], [360, 'Год']] as const).map(([v, n]) => `<button class="${chartRange === v ? 'on' : ''}" data-range="${v}" data-k="r${v}">${n}</button>`).join('');
+    const names = st.competitors.map((c) => c.name);
+    const charts = [
+      lineChart('f-cash', { title: 'Деньги на счёте', x: d.x, series: [{ name: 'Деньги', color: 'var(--c2)', values: d.cash }], format: short }),
+      lineChart('f-pl', { title: 'Выручка и расходы в день', x: d.x, series: [{ name: 'Выручка', color: 'var(--c3)', values: d.revenue }, { name: 'Расходы', color: 'var(--c1)', values: d.costs }], format: short, min: 0 }),
+      lineChart('f-cl', { title: 'Клиенты в день', x: d.x, series: [{ name: 'Обслужили', color: 'var(--c3)', values: d.served }, { name: 'Ушли', color: 'var(--c1)', values: d.lost }], format: (v) => String(Math.round(v)), min: 0 }),
+      lineChart('f-sh', { title: 'Доля рынка, %', x: d.x, series: [{ name: 'Вы', color: 'var(--c1)', values: d.you }, { name: names[0], color: 'var(--c2)', values: d.r0 }, { name: names[1], color: 'var(--c3)', values: d.r1 }], format: (v) => Math.round(v) + '%', min: 0 }),
+      lineChart('f-rep', { title: 'Репутация, звёзды', x: d.x, series: [{ name: 'Репутация', color: 'var(--c2)', values: d.rep }], format: (v) => v.toFixed(1).replace('.', ','), min: 1, max: 5 }),
+    ].join('');
+    return `<div class="gs-sec"><div class="it-seg gs-range">${ranges}</div><div class="gs-grid2">${charts}</div><div class="lbl">Отчёт по месяцам, деньги</div><div class="gs-pl-wrap">${plTable()}</div></div>`;
+  }
+
+  function plTable(): string {
+    const st = s();
+    if (!st.history.length) return '<div class="gs-note">Первая строка появится после первого дня.</div>';
+    const months = [...new Set(st.history.map((r) => r.month))];
+    const byMonth = months.map((m) => {
+      const days = st.history.filter((r) => r.month === m);
+      const exp: Partial<Record<ExpenseCategory, number>> = {};
+      for (const r of days) for (const [k, v] of Object.entries(r.expenses)) exp[k as ExpenseCategory] = (exp[k as ExpenseCategory] ?? 0) + v;
+      return { rev: days.reduce((a, r) => a + r.revenue, 0), exp };
+    });
+    const cats = (Object.keys(EXPENSE_NAMES) as ExpenseCategory[]).filter((c) => byMonth.some((m) => m.exp[c]));
+    const cell = (v: number, cls = '') => `<td class="${cls}">${v ? Math.round(v).toLocaleString('ru-RU') : '–'}</td>`;
+    const totals = byMonth.map((m) => m.rev - Object.values(m.exp).reduce((a, v) => a + v, 0));
+    return `<table class="gs-pl"><thead><tr><th>$</th>${months.map((m) => `<th>${monthName(m).slice(0, 3)}</th>`).join('')}</tr></thead><tbody>
+      <tr><td>Выручка</td>${byMonth.map((m) => cell(m.rev)).join('')}</tr>
+      ${cats.map((c) => `<tr><td>${EXPENSE_NAMES[c]}</td>${byMonth.map((m) => cell(m.exp[c] ?? 0)).join('')}</tr>`).join('')}
+      <tr class="total"><td>Итог</td>${totals.map((v) => cell(v, v < 0 ? 'loss' : 'money')).join('')}</tr></tbody></table>`;
+  }
+
+  function journalHtml(): string {
+    const feed = [...s().feed].reverse().slice(0, 80);
+    return feed.length ? feed.map((f) => `<div class="gs-log"><span class="d">день ${f.day}</span><div><b>${f.title}</b>${f.text ? ` – ${f.text}` : ''}</div></div>`).join('') : '<div class="gs-note">Пока ничего не случилось.</div>';
   }
 
   function closedNote(): string {
@@ -235,8 +378,8 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
       const loyalty = loyaltyOf(e, cfg);
       return `<div class="gs-card"><div class="it-row"><b class="grow">${e.name}</b><span class="num">${money(e.salary)}</span></div>
         <div class="gs-note">${who(e.role, e.experience)} · ${e.official ? 'официально' : '<span class="warn">в конверте</span>'}</div>
-        ${e.role === 'barista' ? `<div class="it-row"><span class="gs-note" style="width:68px">Усталость</span><div class="grow">${bar(e.fatigue, e.fatigue >= b.staff.fatigue.tired ? 'bad' : 'coin')}</div></div>` : ''}
-        <div class="it-row"><span class="gs-note" style="width:68px">Лояльность</span><div class="grow">${bar(loyalty, loyalty < b.staff.poachBelow ? 'bad' : '')}</div></div>
+        ${e.role === 'barista' ? `<div class="it-row"><span class="gs-note" style="width:82px">Усталость${q('fatigue')}</span><div class="grow">${bar(e.fatigue, e.fatigue >= b.staff.fatigue.tired ? 'bad' : 'coin')}</div></div>` : ''}
+        <div class="it-row"><span class="gs-note" style="width:82px">Лояльность${q('loyalty')}</span><div class="grow">${bar(loyalty, loyalty < b.staff.poachBelow ? 'bad' : '')}</div></div>
         <div class="it-row gs-wrap">${book}${e.official ? '' : cmd({ type: 'Officialize', employeeId: e.id }, 'Оформить', 'secondary gs-mini')}<span class="grow"></span>${cmd({ type: 'Fire', employeeId: e.id, severance: true }, `Уволить, ${money(e.salary)}`, 'ghost gs-mini loss')}${cmd({ type: 'Fire', employeeId: e.id, severance: false }, 'Без компенсации', 'ghost gs-mini loss', `title="Шанс жалобы: ${percent(e.official ? b.staff.complaintNoSeverance : b.staff.complaintEnvelope)}"`)}</div></div>`;
     }).join('');
     const full = (c: GameState['candidates'][number]) => st.employees.length >= b.staff.maxStaff || (c.role === 'cleaner' && st.employees.some((e) => e.role === 'cleaner'));
@@ -244,7 +387,7 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
         <div class="gs-note">${who(c.role, c.experience)} · ${c.hasMedBook ? 'медкнижка есть' : '<span class="warn">без медкнижки</span>'}</div>
         <div class="it-row">${cmd({ type: 'Hire', candidateId: c.id, official: true }, `Официально, +34%`, 'secondary gs-mini', full(c) ? 'disabled' : '')}${cmd({ type: 'Hire', candidateId: c.id, official: false }, 'В конверте', 'ghost gs-mini', full(c) ? 'disabled' : '')}</div></div>`).join('');
     return `<div class="it-seg">${posts}</div>
-      <div class="gs-facts">${row('Часов в неделю на бариста', Math.round(hours) + ' из ' + b.staff.weeklyNormHours, over ? 'loss' : '')}${row('Зарплаты со взносами', money(payrollMonthly(st, cfg)) + ' / мес')}</div>
+      <div class="gs-facts">${row('Часов в неделю на бариста', Math.round(hours) + ' из ' + b.staff.weeklyNormHours, over ? 'loss' : '', 'hours')}${row('Зарплаты со взносами', money(payrollMonthly(st, cfg)) + ' / мес')}</div>
       ${over ? '<div class="gs-note loss">Переработка: часы сверх нормы оплачиваются ×2, усталость растёт, на 90 люди увольняются.</div>' : ''}
       <div class="lbl">Команда</div>${team || '<div class="gs-note loss">Никого нет – кофейня закрыта.</div>'}
       <div class="lbl">Кандидаты этой недели</div>${cands || '<div class="gs-note">Новые придут в начале недели.</div>'}`;
@@ -263,7 +406,7 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
         <div class="gs-note">хватит на ${days >= 99 ? '∞' : days.toFixed(1).replace('.', ',')} дн. · поставка ${m.deliveryEveryDays === 1 ? 'каждый день' : 'через ' + next + ' дн.'} · хранится ${shelfLife(st, m, cfg)} дн.</div></div>`;
     }).join('');
     return `<div class="lbl">Поставщик</div><div class="it-seg">${sup}</div><div class="gs-note">${b.suppliers[st.supplier].text}</div>
-      <div class="gs-price"><div class="n"><b>Запас при автозаказе</b><span>больше – реже пусто, но больше списаний</span></div>
+      <div class="gs-price"><div class="n"><b>Запас при автозаказе${q('safety')}</b><span>больше – реже пусто, но больше списаний</span></div>
         <button class="it-btn it-btn--secondary gs-step" data-safety="${-step}" data-k="sf-m" aria-label="Меньше запас" ${st.safetyFactor <= b.inventory.safetyMin ? 'disabled' : ''}>−</button>
         <span class="v">${percent(st.safetyFactor)}</span>
         <button class="it-btn it-btn--secondary gs-step" data-safety="${step}" data-k="sf-p" aria-label="Больше запас" ${st.safetyFactor >= b.inventory.safetyMax ? 'disabled' : ''}>+</button></div>
@@ -299,7 +442,7 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
     const defectName = { damp: 'сырость', wiring: 'проводку', exit: 'запасной выход' }[st.defectType];
     const cause = insp?.cause ? `<div class="gs-note">Повод: ${insp.cause}.</div>` : '';
     return `<div class="it-seg gs-agencies">${heads}</div>
-      <div><div class="it-row" style="margin-bottom:6px"><span class="lbl grow">Готовность: ${a.fullName}</span><span class="num">${score}</span></div>${bar(score, score < 40 ? 'bad' : '')}</div>
+      <div><div class="it-row" style="margin-bottom:6px"><span class="lbl grow">Готовность: ${a.fullName}${q('readiness')}</span><span class="num">${score}</span></div>${bar(score, score < 40 ? 'bad' : '')}</div>
       ${score < b.compliance.unplannedThreshold ? '<div class="gs-note loss">Ниже 40 – каждый день есть шанс внеплановой проверки.</div>' : ''}
       ${insp ? `<div class="lbl">Проверка на ${insp.visitDay}-й день · через ${insp.visitDay - st.day} дн.</div>${cause}${inspectorCard(insp.inspectorId)}` : planned ? `<div class="gs-note">Плановая проверка – на ${planned.visitDay}-й день, уведомление придёт за ${a.noticeDays} дней.</div>` : ''}
       <div class="it-row gs-wrap">
@@ -354,12 +497,12 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
         <div class="it-row">${d.filed ? '' : cmd({ type: 'FileDeclaration' }, 'Подать декларацию', 'primary gs-mini')}${d.filed ? cmd({ type: 'PayTax' }, 'Оплатить', 'primary gs-mini', st.cash < taxOwed(st) ? 'disabled' : '') : ''}</div></div>`
       : '<div class="gs-note">Сейчас ничего не причитается. Налог начисляется в конце квартала.</div>';
     const g = b.grey;
-    return `<div class="gs-facts">${row('Кредитная история', st.grade)}${row('Долг по кредитам', money(loansDebt(st)))}${row('Налоговый режим', regime.name)}</div>
+    return `<div class="gs-facts">${row('Кредитная история', st.grade, '', 'grade')}${row('Долг по кредитам', money(loansDebt(st)))}${row('Налоговый режим', regime.name, '', 'regime')}</div>
       ${taken ? `<div class="lbl">Ваши кредиты</div>${taken}` : ''}
       <div class="lbl">Налоги</div>${taxBlock}
       <div class="lbl">Кто подаёт декларации</div><div class="it-seg">${accBtns}</div>
       <div class="gs-note">${st.accounting === 'self' ? 'Подавать и платить – самому, 10% шанс ошибки в сумме.' : `${money(accountantMonthly(st, cfg))} в месяц, подаёт и платит сам.`}</div>
-      <div class="gs-price"><div class="n"><b>Мимо кассы</b><span>${st.offbookShare ? `накоплено ${money(st.offbookTotal)}` : 'налог меньше, но есть контрольная закупка'}</span></div>
+      <div class="gs-price"><div class="n"><b>Мимо кассы${q('offbook')}</b><span>${st.offbookShare ? `накоплено ${money(st.offbookTotal)}` : 'налог меньше, но есть контрольная закупка'}</span></div>
         <button class="it-btn it-btn--secondary gs-step" data-offbook="${-g.offbookStep}" data-k="ob-m" aria-label="Меньше" ${st.offbookShare <= 0 ? 'disabled' : ''}>−</button>
         <span class="v">${percent(st.offbookShare)}</span>
         <button class="it-btn it-btn--secondary gs-step" data-offbook="${g.offbookStep}" data-k="ob-p" aria-label="Больше" ${st.offbookShare >= g.offbookMax ? 'disabled' : ''}>+</button></div>
@@ -375,20 +518,28 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
 
   // ---------- меню и отладка ----------
   function renderMenu(): void {
-    menuEl.hidden = !menuOpen;
-    if (!menuOpen) return;
+    menuEl.hidden = !menuOpen && !debugOpen;
+    if (menuEl.hidden) return;
+    if ((document.activeElement as HTMLElement | null)?.tagName === 'INPUT' && menuEl.contains(document.activeElement)) return;
     const st = s();
-    fill(menuEl, `<div class="lbl">Партия · сид ${st.seed}</div>
-      <div class="it-row"><button class="it-btn it-btn--secondary grow" data-act="download" data-k="dl">Скачать сейв</button><button class="it-btn it-btn--secondary grow" data-act="csv" data-k="csv">Телеметрия CSV</button></div>
-      <div class="it-row"><button class="it-btn it-btn--ghost grow" data-act="menu" data-k="main">Главное меню</button></div>
-      <div class="gs-note">Игра сохраняется сама каждый день.</div>
-      <div class="lbl">Отладка</div>
+    const main = menuOpen
+      ? `<div class="lbl">Настройки</div>${audioControlsHtml()}
+      <label class="gs-check-line"><input type="checkbox" data-hints ${settings.hints ? 'checked' : ''}> Советник во вкладке «Обзор»</label>
+      <div class="lbl">Партия</div>
+      <div class="it-row"><button class="it-btn it-btn--secondary" data-act="download" data-k="dl">Скачать сейв</button><button class="it-btn it-btn--secondary" data-act="csv" data-k="csv">Телеметрия CSV</button></div>
+      <button class="it-btn it-btn--secondary" data-act="menu" data-k="main">Главное меню</button>
+      <div class="gs-note">Игра сохраняется сама каждый день. Пробел – пауза, 1 / 2 / 3 – скорость, колесо – зум, Esc – закрыть окно, F2 – отладка.</div>`
+      : '';
+    const dbg = debugOpen
+      ? `<div class="lbl">Отладка · сид ${st.seed}</div>
       <div class="it-row">${cmd({ type: 'DebugAddMoney', amount: 1000 }, '+ $1 000')}</div>
-      <div class="it-row gs-wrap">${AGENCIES.map((a) => cmd({ type: 'DebugInspection', agency: a }, cfg.inspections[a].name, 'secondary gs-mini')).join('')}</div>
+      <div class="it-row">${AGENCIES.map((a) => cmd({ type: 'DebugInspection', agency: a }, cfg.inspections[a].name, 'secondary gs-mini')).join('')}</div>
       <select class="gs-select" data-ref="dbg-event" aria-label="Событие">${cfg.events.map((e) => `<option value="${e.id}">${e.title}</option>`).join('')}</select>
       <button class="it-btn it-btn--secondary" data-dbg-event data-k="dbgev">Запустить событие</button>
-      <div class="it-row"><button class="it-btn it-btn--secondary grow" data-skip="1" data-k="s1">+1 дн.</button><button class="it-btn it-btn--secondary grow" data-skip="7" data-k="s7">+7</button><button class="it-btn it-btn--secondary grow" data-skip="30" data-k="s30">+30</button></div>
-      <div class="gs-note">Команд в логе: ${st.commandLog.length} · дней в телеметрии: ${st.history.length}</div>`);
+      <div class="it-row"><button class="it-btn it-btn--secondary" data-skip="1" data-k="s1">+1 дн.</button><button class="it-btn it-btn--secondary" data-skip="7" data-k="s7">+7</button><button class="it-btn it-btn--secondary" data-skip="30" data-k="s30">+30</button></div>
+      <div class="gs-note">Команд в логе: ${st.commandLog.length} · дней в телеметрии: ${st.history.length}</div>`
+      : '';
+    fill(menuEl, main + dbg);
   }
 
   // ---------- тосты ----------
@@ -398,6 +549,8 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
     for (const f of feed.slice(feedSeen).slice(-4)) {
       const el = document.createElement('div');
       el.className = 'it-panel it-toast';
+      const sfx: Record<string, Sfx> = { ok: 'ok', warn: 'warn', bad: 'bad', info: 'tick' };
+      audio.play(sfx[f.tone]);
       const dot = { ok: ['ok', '+'], warn: ['wr', '!'], bad: ['er', '!'], info: ['wr', 'i'] }[f.tone];
       el.innerHTML = `<span class="dot ${dot[0]}">${dot[1]}</span><div><div style="font-weight:600">${f.title}</div>${f.text ? `<div class="gs-note">${f.text}</div>` : ''}</div>`;
       toastsEl.appendChild(el);
@@ -501,7 +654,15 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
       return fill(modalEl, endHtml());
     }
     modalEl.hidden = !p;
-    if (!p) return;
+    if (!p) {
+      shownPending = '';
+      return;
+    }
+    const pendingKey = `${st.day}:${p.kind}:${st.pending.length}`;
+    if (pendingKey !== shownPending) {
+      shownPending = pendingKey;
+      audio.play(p.kind === 'monthReport' ? 'open' : 'chime');
+    }
     if (p.kind === 'monthReport') return fill(modalEl, monthHtml(p));
     if (p.kind === 'inspectionNotice') return fill(modalEl, noticeHtml(p));
     if (p.kind === 'event') return fill(modalEl, eventHtml(p));
@@ -515,6 +676,7 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
     if (visitShown < p.results.length) {
       visitTimer = window.setTimeout(() => {
         visitShown++;
+        audio.play(p.results[visitShown - 1]?.violated ? 'stamp' : 'tick');
         if (alive) renderModal();
       }, 900);
     }
@@ -536,18 +698,41 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
     renderHud();
   }
 
+  const onInput = (e: Event): void => {
+    const t = e.target as HTMLInputElement;
+    if (t.dataset.vol) {
+      settings[t.dataset.vol as 'music' | 'sfx'] = Number(t.value) / 100;
+      audio.applyVolumes();
+      saveSettings();
+    } else if (t.dataset.hints !== undefined) {
+      settings.hints = t.checked;
+      saveSettings();
+      renderSide();
+    }
+  };
+  screen.addEventListener('input', onInput);
+
   const onClick = (e: MouseEvent): void => {
+    audio.unlock();
     const t = (e.target as Element).closest<HTMLElement>('button');
     if (!t || t.hasAttribute('disabled')) return;
     const d = t.dataset;
+    audio.play(d.tab ? 'tab' : 'click');
     if (d.speed !== undefined) return setSpeed(Number(d.speed) as Speed);
     if (d.act === 'download') return hooks.download();
     if (d.act === 'csv') return hooks.exportCsv();
     if (d.act === 'new') return hooks.newGame();
     if (d.act === 'menu') return hooks.menu();
     if (d.menu !== undefined) menuOpen = !menuOpen;
-    else if (d.tab) tab = d.tab as Tab;
-    else if (d.select) selected = d.select;
+    else if (d.close !== undefined) windowOpen = false;
+    else if (d.range) chartRange = Number(d.range);
+    else if (d.tab) {
+      // повторное нажатие на открытую вкладку закрывает окно
+      windowOpen = !(windowOpen && tab === d.tab && !t.classList.contains('gs-advice'));
+      tab = d.tab as Tab;
+      selected = null;
+    }
+    else if (d.select !== undefined) selected = d.select || null;
     else if (d.price) game.dispatch({ type: 'SetPrice', itemId: d.price, price: s().prices[d.price] + Number(d.delta) });
     else if (d.safety) game.dispatch({ type: 'SetSafety', factor: s().safetyFactor + Number(d.safety) });
     else if (d.offbook) game.dispatch({ type: 'SetOffbook', share: s().offbookShare + Number(d.offbook) });
@@ -558,7 +743,8 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
       if (d.goto) {
         tab = 'checks';
         agencyTab = d.goto as AgencyId;
-        selected = 'player';
+        windowOpen = true;
+        selected = null;
       }
     } else if (d.skip) game.skipDays(Number(d.skip));
     hooks.save();
@@ -569,8 +755,15 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
   const onKey = (e: KeyboardEvent): void => {
     if (e.key === 'F2') {
       e.preventDefault();
-      menuOpen = !menuOpen;
+      debugOpen = !debugOpen;
       return renderMenu();
+    }
+    if (e.key === 'Escape') {
+      if (menuOpen) menuOpen = false;
+      else if (windowOpen) windowOpen = false;
+      else if (selected) selected = null;
+      else return;
+      return renderAll();
     }
     if (e.metaKey || e.ctrlKey || e.altKey || game.blocked) return;
     if (e.code === 'Space') {
@@ -583,7 +776,10 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
   window.addEventListener('keydown', onKey);
 
   game.onDay = (r) => {
-    if (r.open) scene.floatText(signedMoney(r.revenue - r.cogs), r.revenue - r.cogs < 0 ? 'loss' : 'money');
+    if (r.open) {
+      scene.floatText(signedMoney(r.revenue - r.cogs), r.revenue - r.cogs < 0 ? 'loss' : 'money');
+      audio.play('coin');
+    }
   };
 
   // ---------- игровой цикл ----------
@@ -598,6 +794,7 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
       renderAll();
     } else renderTime();
     scene.frame(dt, game.blocked ? 0 : game.clock.speed, game.clock.hour);
+    audio.setNight(nightFactor(game.clock.hour) > 0.5);
     requestAnimationFrame(frame);
   }
   renderAll();
@@ -608,5 +805,6 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
     clearTimeout(visitTimer);
     window.removeEventListener('keydown', onKey);
     game.onDay = null;
+    tipEl.hidden = true;
   };
 }

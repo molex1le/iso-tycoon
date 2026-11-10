@@ -1,8 +1,10 @@
 /* Живая карта района: статичная сцена, пешеходы, время суток, камера. Только отображение – на игру не влияет. */
-import { BUILDINGS, MAP, PROPS, drawBuilding, drawCar, drawProp, ground, type ShopLook } from './models';
+import { BUILDINGS, MAP, PROPS, ROADS, WALKS, drawBuilding, drawCar, drawProp, ground, type ShopLook } from './models';
 import { Pen, TH, TW, svgEl } from './pen';
 
-const MAX_H = 215;
+const MAX_H = 270;
+const MIN_ZOOM = 0.9;
+const MAX_ZOOM = 7;
 const W = MAP * TW;
 const H = MAP * TH + MAX_H + 30;
 
@@ -51,8 +53,10 @@ export interface Flow {
 const DOORS: Record<string, Pt> = { player: [6.5, 8.5], rival0: [16.5, 8.5], rival1: [8.5, 13.5] };
 const DOOR_STEP: Record<string, Pt> = { player: [6.5, 8.05], rival0: [16.5, 8.05], rival1: [8.05, 13.5] };
 const METRO: Pt = [13, 8.5];
-const EDGES: Pt[] = [[0, 8.5], [20, 8.5], [0, 11.5], [20, 11.5], [8.5, 0], [8.5, 20], [11.5, 0], [11.5, 20]];
-const isH = (p: Pt) => p[1] === 8.5 || p[1] === 11.5;
+const EDGES: Pt[] = WALKS.flatMap((w): Pt[] => [[0, w], [MAP, w], [w, 0], [w, MAP]]);
+const pick = (): number => WALKS[Math.floor(Math.random() * WALKS.length)];
+/** точка лежит на горизонтальной линии тротуара и не на пересечении с вертикальной */
+const isH = (p: Pt) => WALKS.includes(p[1]);
 
 /** Маршрут по тротуарам между двумя точками на линиях сетки. */
 function route(a: Pt, b: Pt): Pt[] {
@@ -60,12 +64,12 @@ function route(a: Pt, b: Pt): Pt[] {
   const hb = isH(b);
   if (ha && hb) {
     if (a[1] === b[1]) return [a, b];
-    const vx = Math.random() < 0.5 ? 8.5 : 11.5;
+    const vx = pick();
     return [a, [vx, a[1]], [vx, b[1]], b];
   }
   if (!ha && !hb) {
     if (a[0] === b[0]) return [a, b];
-    const hy = Math.random() < 0.5 ? 8.5 : 11.5;
+    const hy = pick();
     return [a, [a[0], hy], [b[0], hy], b];
   }
   return ha ? [a, [b[0], a[1]], b] : [a, [a[0], b[1]], b];
@@ -117,13 +121,13 @@ export class SceneView {
   private centerCamera(): void {
     const r = this.svg.getBoundingClientRect();
     const u = this.unit();
-    const panel = r.width > 900 ? 364 : 0;
-    const freeW = Math.max(240, r.width - panel) * u;
+    const panel = 0;
+    const freeW = r.width * u;
     const [ax, ay] = this.pen.pt(6.5, 7);
     const [bx, by] = this.pen.pt(13, 7);
-    this.cam.s = Math.min(1.7, Math.max(0.75, freeW / (bx - ax + 380)));
+    this.cam.s = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, freeW / (bx - ax + 620)));
     const sx = (r.width - panel) / 2;
-    const sy = (r.height + 80) / 2;
+    const sy = (r.height + 20) / 2;
     const vx = (sx - r.width / 2) * u + W / 2;
     const vy = (sy - r.height / 2) * u + H / 2;
     this.cam.x = vx - ((ax + bx) / 2) * this.cam.s;
@@ -132,9 +136,9 @@ export class SceneView {
   }
 
   private spawnCars(): void {
-    const lanes: [Car['axis'], number, 1 | -1][] = [['x', 9.5, 1], ['x', 10.14, -1], ['y', 9.5, -1], ['y', 10.14, 1]];
+    const lanes: [Car['axis'], number, 1 | -1][] = ROADS.flatMap((r): [Car['axis'], number, 1 | -1][] => [['x', r + 0.5, 1], ['x', r + 1.14, -1], ['y', r + 0.5, -1], ['y', r + 1.14, 1]]);
     lanes.forEach(([axis, lane, dir], i) => {
-      for (let k = 0; k < 2; k++) {
+      for (let k = 0; k < 3; k++) {
         const node = svgEl('g', { class: 'car' });
         drawCar(new Pen(node, 0, 0), 0, 0, axis, (i * 2 + k + 1) % 4);
         this.cars.push({ node, axis, lane, dir, pos: Math.random() * MAP, speed: 1.6 + Math.random() * 0.8, anchor: undefined });
@@ -162,11 +166,22 @@ export class SceneView {
 
   private drawGround(): void {
     const p = new Pen(this.gGround, this.pen.ox, this.pen.oy);
+    // тайлы одного вида сливаются в один path: на большой карте это тысячи элементов меньше
+    const paths = new Map<string, string>();
+    const f = (x: number, y: number) => p.pt(x, y).map((n) => n.toFixed(0)).join(' ');
     for (let y = 0; y < MAP; y++) {
-      for (let x = 0; x < MAP; x++) p.flat(x, y, 1, 1, 0, 'tile ' + ground(x, y));
+      for (let x = 0; x < MAP; x++) {
+        const k = ground(x, y);
+        paths.set(k, (paths.get(k) ?? '') + `M${f(x, y)}L${f(x + 1, y)}L${f(x + 1, y + 1)}L${f(x, y + 1)}Z`);
+      }
     }
+    for (const [k, d] of paths) svgEl('path', { class: 'tile ' + k, d }, this.gGround);
     // зебры и разметка
-    for (const [x0, y0, along] of [[8, 9, 'y'], [11, 9, 'y'], [9, 8, 'x'], [9, 11, 'x']] as [number, number, string][]) {
+    const crossings: [number, number, string][] = [];
+    for (const rx of ROADS) {
+      for (const ry of ROADS) crossings.push([rx - 1, ry, 'y'], [rx + 2, ry, 'y'], [rx, ry - 1, 'x'], [rx, ry + 2, 'x']);
+    }
+    for (const [x0, y0, along] of crossings) {
       for (let i = 0; i < 6; i++) {
         const o = 0.12 + i * 0.32;
         if (along === 'y') p.flat(x0 + 0.15, y0 + o, 0.7, 0.14, 0.2, 'zebra');
@@ -174,9 +189,11 @@ export class SceneView {
       }
     }
     for (let i = 0; i < MAP; i += 1) {
-      if (i >= 8 && i < 12) continue;
-      p.flat(i + 0.25, 9.97, 0.5, 0.06, 0.2, 'lane');
-      p.flat(9.97, i + 0.25, 0.06, 0.5, 0.2, 'lane');
+      if (ROADS.some((r) => i >= r - 1 && i < r + 3)) continue;
+      for (const r of ROADS) {
+        p.flat(i + 0.25, r + 0.97, 0.5, 0.06, 0.2, 'lane');
+        p.flat(r + 0.97, i + 0.25, 0.06, 0.5, 0.2, 'lane');
+      }
     }
   }
 
@@ -261,7 +278,7 @@ export class SceneView {
   }
 
   private spawn(from: Pt, to: Pt, enter: string | null, cup = false): void {
-    if (this.walkers.length >= 70) return;
+    if (this.walkers.length >= 120) return;
     const pts = route(from, to);
     if (enter) pts.push(DOOR_STEP[enter]);
     if (cup) pts.unshift(DOOR_STEP[Object.keys(DOORS).find((k) => DOORS[k] === from)!] ?? from);
@@ -294,7 +311,7 @@ export class SceneView {
     const step = dt * speed;
     this.moveCars(step);
     const dayness = hour >= 7 && hour < 22 ? 1 : 0.12;
-    this.spawnDebt += step * 1.6 * dayness * Math.min(2, this.flow.traffic / 950);
+    this.spawnDebt += step * 3.4 * dayness * Math.min(2, this.flow.traffic / 950);
     while (this.spawnDebt >= 1) {
       this.spawnDebt--;
       this.spawnRandom();
@@ -362,7 +379,7 @@ export class SceneView {
 
   private applyCam(): void {
     const c = this.cam;
-    c.s = Math.min(3.2, Math.max(0.75, c.s));
+    c.s = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, c.s));
     c.x = Math.min(W * 0.6, Math.max(W * 0.4 - W * c.s, c.x));
     c.y = Math.min(H * 0.6, Math.max(H * 0.4 - H * c.s, c.y));
     this.world.setAttribute('transform', `translate(${c.x.toFixed(1)},${c.y.toFixed(1)}) scale(${c.s.toFixed(3)})`);
@@ -415,7 +432,7 @@ export class SceneView {
         const vx = (e.clientX - r.left - r.width / 2) * u + W / 2;
         const vy = (e.clientY - r.top - r.height / 2) * u + H / 2;
         const before = this.cam.s;
-        this.cam.s = Math.min(3.2, Math.max(0.75, before * Math.exp(-e.deltaY * 0.0015)));
+        this.cam.s = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, before * Math.exp(-e.deltaY * 0.0015)));
         const k = this.cam.s / before;
         this.cam.x = vx - (vx - this.cam.x) * k;
         this.cam.y = vy - (vy - this.cam.y) * k;

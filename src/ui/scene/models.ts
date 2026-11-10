@@ -1,7 +1,7 @@
 /* Библиотека изометрических моделей: здания и уличная мелочь. Всё – 2D-полигоны в плоском стиле. */
 import { FL, hash, type Pen } from './pen';
 
-export type ModelKind = 'panel' | 'brick' | 'house' | 'office' | 'metro' | 'cafePlayer' | 'cafeChain' | 'cafeCraft' | 'kiosk' | 'shop' | 'busStop';
+export type ModelKind = 'panel' | 'brick' | 'house' | 'office' | 'metro' | 'cafePlayer' | 'cafeChain' | 'cafeCraft' | 'kiosk' | 'shop' | 'busStop' | 'mall' | 'school' | 'gas';
 
 export interface Building {
   id?: string;
@@ -28,7 +28,8 @@ export type Prop =
   | { kind: 'tree' | 'conifer' | 'bush' | 'lamp'; x: number; y: number }
   | { kind: 'bench'; x: number; y: number }
   | { kind: 'car'; x: number; y: number; axis: 'x' | 'y'; color: number }
-  | { kind: 'flowers'; x: number; y: number };
+  | { kind: 'flowers'; x: number; y: number }
+  | { kind: 'fountain'; x: number; y: number };
 
 // ---------- детали ----------
 
@@ -289,6 +290,58 @@ function busStop(p: Pen, b: Building): void {
   p.disc(x + 1.5, y + 0.6, 26, 5, 5, 'stop-badge');
 }
 
+function mall(p: Pen, b: Building): void {
+  const { x, y, w, d } = b;
+  const H = 48;
+  p.box(x, y, w, d, 0, H, 'white');
+  winL(p, x, x + w, y + d, 30, w * 2, 12, 0.8);
+  winR(p, y, y + d, x + w, 30, d * 2, 12, 0.8);
+  // стеклянный атриум на всю высоту
+  p.wallL(x + w / 2 - 1.2, x + w / 2 + 1.2, y + d, 0, 28, 'win vitrine');
+  for (let i = 0; i <= 6; i++) {
+    const t = x + w / 2 - 1.2 + (2.4 * i) / 6;
+    p.line([t, y + d, 0], [t, y + d, 28], 'mullion');
+  }
+  doorL(p, x + w / 2 - 0.4, y + d, 0.8, 16, 'door glassdoor');
+  p.wallL(x + 0.3, x + 1.6, y + d, 4, 22, 'f-l m-orange');
+  p.wallL(x + w - 1.6, x + w - 0.3, y + d, 4, 22, 'f-l m-blue');
+  p.box(x + 0.08, y + 0.08, w - 0.16, d - 0.16, H, 3, 'roofgrey');
+  p.box(x + w / 2 - 1.5, y + d - 0.14, 3, 0.12, H + 3, 14, 'coffee');
+  p.text('L', x + w / 2, y + d - 0.02 + 0.001, H + 6.5, b.title ?? 'ТЦ ГАЛЕРЕЯ', 'sign-text', 10);
+  acUnit(p, x + 1, y + 1, H + 3);
+  acUnit(p, x + 3, y + 1.6, H + 3);
+  acUnit(p, x + 4.4, y + 0.8, H + 3);
+}
+
+function school(p: Pen, b: Building): void {
+  const { x, y, w, d } = b;
+  const H = 3 * FL + 2;
+  p.box(x, y, w, d, 0, H, 'plaster2');
+  floorsWindows(p, b, 3, 0, 2);
+  p.box(x + w / 2 - 0.5, y + d, 1, 0.5, 0, 22, 'plaster');
+  doorL(p, x + w / 2 - 0.2, y + d + 0.5, 0.4, 16);
+  p.box(x + w / 2 - 0.6, y + d - 0.05, 1.2, 0.65, 22, 3, 'slateroof');
+  gable(p, x - 0.06, y - 0.06, w + 0.12, d + 0.12, H, 20, 'greenroof', 'plaster2', 'x');
+  p.text('L', x + w / 2, y + d + 0.001, H - 9, 'ШКОЛА', 'sign-dark', 8);
+  p.line([x + 0.4, y + d + 0.6, 0], [x + 0.4, y + d + 0.6, 40], 'pole');
+  p.wallL(x + 0.4, x + 0.85, y + d + 0.6, 30, 40, 'f-l m-red');
+}
+
+function gas(p: Pen, b: Building): void {
+  const { x, y, w, d } = b;
+  p.box(x + 0.1, y + 0.1, 1.3, d - 0.2, 0, 18, 'white');
+  winR(p, y + 0.3, y + d - 0.3, x + 1.4, 3, 2, 10, 0.8);
+  // колонки и навес
+  for (const py of [y + 0.7, y + d - 0.9]) {
+    p.box(x + 2.1, py, 0.22, 0.34, 0, 10, 'red');
+    p.line([x + 2.2, py + 0.17, 10], [x + 2.2, py + 0.17, 24], 'pole');
+  }
+  p.box(x + 1.6, y + 0.3, w - 1.7, d - 0.6, 24, 4, 'green');
+  p.line([x + w - 0.1, y + d - 0.1, 0], [x + w - 0.1, y + d - 0.1, 50], 'pole');
+  p.box(x + w - 0.4, y + d - 0.15, 0.6, 0.1, 40, 18, 'green');
+  p.text('L', x + w - 0.1, y + d - 0.05 + 0.001, 45, 'АЗС', 'sign-text', 8);
+}
+
 export function drawBuilding(pen: Pen, b: Building, look: ShopLook): void {
   switch (b.kind) {
     case 'panel': return panel(pen, b);
@@ -302,6 +355,9 @@ export function drawBuilding(pen: Pen, b: Building, look: ShopLook): void {
     case 'kiosk': return kiosk(pen, b);
     case 'shop': return shop(pen, b);
     case 'busStop': return busStop(pen, b);
+    case 'mall': return mall(pen, b);
+    case 'school': return school(pen, b);
+    case 'gas': return gas(pen, b);
   }
 }
 
@@ -356,6 +412,16 @@ export function drawProp(p: Pen, o: Prop): void {
       p.flat(x, y, 0.8, 0.5, 0.5, 'bed');
       for (let i = 0; i < 7; i++) p.disc(x + 0.1 + hash(x, y, i) * 0.6, y + 0.08 + hash(y, x, i) * 0.34, 3, 2.2, 2.2, `flower c${i % 3}`);
       break;
+    case 'fountain': {
+      p.disc(x, y, 1, 26, 13, 'pool-rim');
+      p.disc(x, y, 3, 22, 11, 'pool');
+      p.line([x, y, 3], [x, y, 16], 'pole');
+      for (let i = 0; i < 3; i++) {
+        const c = p.disc(x, y, 18, 3, 3, 'spray');
+        c.style.animationDelay = `${i * 0.5}s`;
+      }
+      break;
+    }
     case 'car':
       drawCar(p, x, y, o.axis, o.color);
       break;
@@ -364,17 +430,23 @@ export function drawProp(p: Pen, o: Prop): void {
 
 // ---------- район 20×20 ----------
 
-export const MAP = 20;
+export const MAP = 33;
+/** полосы проезжей части и тротуары */
+export const ROADS = [9, 22];
+export const WALKS = [8.5, 11.5, 21.5, 24.5];
+
+const isRoad = (v: number) => ROADS.some((r) => v === r || v === r + 1);
+const isWalk = (v: number) => ROADS.some((r) => v === r - 1 || v === r + 2);
 
 export function ground(x: number, y: number): string {
-  const road = (v: number) => v === 9 || v === 10;
-  const walk = (v: number) => v === 8 || v === 11;
-  if (road(x) && road(y)) return 'road';
-  if ((road(x) && walk(y)) || (road(y) && walk(x))) return 'road cross';
-  if (road(x) || road(y)) return 'road';
-  if (walk(x) || walk(y)) return 'pave';
+  if (isRoad(x) && isRoad(y)) return 'road';
+  if ((isRoad(x) && isWalk(y)) || (isRoad(y) && isWalk(x))) return 'road cross';
+  if (isRoad(x) || isRoad(y)) return 'road';
+  if (isWalk(x) || isWalk(y)) return 'pave';
   if (x >= 12 && x <= 14 && y >= 5 && y <= 7) return 'pave';
   if (x >= 15 && x <= 17 && y >= 15 && y <= 17) return 'water';
+  if (x >= 27 && x <= 30 && y >= 29 && y <= 31) return 'water';
+  if (x >= 28 && x <= 32 && y >= 25 && y <= 27) return 'pave';
   return (x + y) % 2 ? 'grass-2' : 'grass';
 }
 
@@ -406,6 +478,23 @@ export const BUILDINGS: Building[] = [
   { kind: 'busStop', x: 13, y: 11, w: 2, d: 1 },
   { kind: 'house', x: 12, y: 17, w: 2, d: 2, variant: 1 },
   { kind: 'shop', x: 18, y: 18, w: 2, d: 2, variant: 2 },
+  // восток: деловой квартал
+  { kind: 'office', x: 25, y: 1, w: 3, d: 3, floors: 12 },
+  { kind: 'panel', x: 29, y: 0, w: 4, d: 2, floors: 8, variant: 1 },
+  { kind: 'brick', x: 29, y: 4, w: 3, d: 3, floors: 4 },
+  { kind: 'shop', x: 25, y: 5, w: 3, d: 2, variant: 1, title: 'БАНК' },
+  { kind: 'mall', x: 25, y: 12, w: 6, d: 5, title: 'ТЦ ГАЛЕРЕЯ' },
+  { kind: 'panel', x: 25, y: 18, w: 3, d: 2, floors: 5 },
+  { kind: 'house', x: 30, y: 18, w: 2, d: 2, variant: 3 },
+  // юг: школа и жилые кварталы
+  { kind: 'school', x: 1, y: 25, w: 5, d: 3 },
+  { kind: 'house', x: 1, y: 30, w: 2, d: 2, variant: 2 },
+  { kind: 'house', x: 4, y: 30, w: 2, d: 2, variant: 0 },
+  { kind: 'panel', x: 12, y: 25, w: 3, d: 2, floors: 9 },
+  { kind: 'panel', x: 16, y: 25, w: 4, d: 2, floors: 7, variant: 1 },
+  { kind: 'brick', x: 12, y: 29, w: 3, d: 3, floors: 3 },
+  { kind: 'brick', x: 16, y: 29, w: 3, d: 3, floors: 2 },
+  { kind: 'gas', x: 25, y: 25, w: 3, d: 3 },
 ];
 
 export const PROPS: Prop[] = [
@@ -426,4 +515,31 @@ export const PROPS: Prop[] = [
   { kind: 'car', x: 15.2, y: 10.56, axis: 'x', color: 2 },
   { kind: 'car', x: 9.08, y: 3.2, axis: 'y', color: 1 },
   { kind: 'car', x: 10.56, y: 15.3, axis: 'y', color: 3 },
+  { kind: 'car', x: 15.2, y: 22.08, axis: 'x', color: 1 },
+  { kind: 'car', x: 28.2, y: 23.56, axis: 'x', color: 0 },
+  { kind: 'car', x: 22.08, y: 15.2, axis: 'y', color: 2 },
+  { kind: 'fountain', x: 29.5, y: 26 },
+  { kind: 'bench', x: 28.5, y: 27.2 },
+  { kind: 'bench', x: 31, y: 27.2 },
+  ...generatedProps(),
 ];
+
+/** Деревья и фонари новых кварталов: расставляются по детерминированному хешу. */
+function generatedProps(): Prop[] {
+  const out: Prop[] = [];
+  const taken = new Set<string>();
+  for (const b of BUILDINGS) for (let x = b.x - 1; x < b.x + b.w; x++) for (let y = b.y - 1; y < b.y + b.d + 1; y++) taken.add(`${x},${y}`);
+  for (let x = 0; x < MAP; x++) {
+    for (let y = 0; y < MAP; y++) {
+      if (x <= 20 && y <= 20) continue;
+      if (!ground(x, y).startsWith('grass') || taken.has(`${x},${y}`)) continue;
+      const h = hash(x, y, 5);
+      if (h < 0.3) out.push({ kind: h < 0.09 ? 'conifer' : h < 0.24 ? 'tree' : 'bush', x: x + 0.3 + hash(x, y, 6) * 0.4, y: y + 0.3 + hash(y, x, 7) * 0.4 });
+    }
+  }
+  for (let i = 2; i < MAP; i += 6) {
+    if (Math.abs(i - 10) > 3) out.push({ kind: 'lamp', x: 21.85, y: i + 0.5 }, { kind: 'lamp', x: i + 0.5, y: 21.85 });
+    if (i > 20 && i !== 26) out.push({ kind: 'lamp', x: 8.85, y: i + 0.5 }, { kind: 'lamp', x: i + 0.5, y: 8.85 });
+  }
+  return out;
+}

@@ -66,3 +66,9 @@
 @keyframes floatup { from { transform: translateY(0); opacity: 1; } to { transform: translateY(-46px); opacity: 0; } }
 .gs-map::after { content: ""; position: absolute; inset: 0; background: #ff8a3c; opacity: var(--dusk); pointer-events: none; mix-blend-mode: soft-light; }
 @media (prefers-reduced-motion: reduce) { .steam, .pin, .float { animation-duration: .01s; } }
+
+.sign-dark { font-family: var(--font-display); fill: #4a2f21; stroke: none; }
+.pool-rim { fill: #bdb8ab; } .pool { fill: color-mix(in srgb, #5ab4e0 calc(100% - var(--dim)), var(--nightc)); }
+.spray { fill: #d8f1fb; stroke: none !important; animation: spray 1.5s ease-out infinite; }
+@keyframes spray { from { transform: translateY(0); opacity: 1; } to { transform: translateY(-14px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .spray { animation: none; } }

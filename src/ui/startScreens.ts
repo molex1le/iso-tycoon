@@ -3,6 +3,8 @@ import { cushionDays } from '../core/finance';
 import { createInitialState, defaultOptions, rollDefects, type NewGameOptions } from '../core/state';
 import { money, monthName } from './format';
 import { monthOf } from '../core/calendar';
+import { audio, audioControlsHtml } from './audio';
+import { saveSettings, settings } from './settings';
 
 export interface MenuHooks {
   canContinue: boolean;
@@ -25,12 +27,21 @@ export function mountMainMenu(root: HTMLElement, hooks: MenuHooks, error = ''): 
       <button class="it-btn it-btn--secondary" data-a="load">Загрузить сейв из файла</button>
       <input type="file" accept="application/json,.json" hidden data-file>
       ${error ? `<div class="loss">${error}</div>` : ''}
+      <div class="lbl">Звук</div>${audioControlsHtml()}
       <div class="lbl">Миры</div>
       <div class="st-worlds">${WORLDS.map(([n, open]) => `<div class="st-world ${open ? '' : 'lock'}">${open ? '' : '🔒 '}${n}</div>`).join('')}</div>
     </div>
   </div></div>`;
   const file = root.querySelector<HTMLInputElement>('[data-file]')!;
+  root.querySelector('.st')!.addEventListener('input', (e) => {
+    const t = e.target as HTMLInputElement;
+    if (!t.dataset.vol) return;
+    settings[t.dataset.vol as 'music' | 'sfx'] = Number(t.value) / 100;
+    audio.applyVolumes();
+    saveSettings();
+  });
   root.querySelector('.st')!.addEventListener('click', (e) => {
+    audio.unlock();
     const a = (e.target as Element).closest<HTMLElement>('button')?.dataset.a;
     if (a === 'continue') hooks.onContinue();
     else if (a === 'new') hooks.onNew();
@@ -142,6 +153,8 @@ export function mountWizard(root: HTMLElement, cfg: GameConfig, seed: number, on
   root.onclick = (e) => {
     const t = (e.target as Element).closest<HTMLElement>('button');
     if (!t || t.hasAttribute('disabled')) return;
+    audio.unlock();
+    audio.play('click');
     const d = t.dataset;
     if (d.nav === 'back') {
       if (step === 0) {
