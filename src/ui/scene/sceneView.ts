@@ -119,6 +119,7 @@ export function nightFactor(hour: number): number {
 }
 
 export class SceneView {
+  private focusRun = 0;
   private svg: SVGSVGElement;
   private world: SVGElement;
   private gHorizon: SVGElement;
@@ -195,6 +196,30 @@ export class SceneView {
     this.cam.x = W / 2 - cx * this.cam.s;
     this.cam.y = vy - cy * this.cam.s;
     this.applyCam();
+  }
+
+  /** Плавно навести камеру на здание по его id; false – такого здания на карте нет. */
+  focus(id: string): boolean {
+    const b = this.layout.buildings.find((x) => x.id === id);
+    if (!b) return false;
+    const [cx, cy] = this.pen.pt(b.x + b.w / 2, b.y + b.d / 2);
+    const from = { ...this.cam };
+    const s = Math.max(from.s, 1.6);
+    const to = { s, x: W / 2 - cx * s, y: H / 2 - cy * s };
+    const start = performance.now();
+    const id2 = ++this.focusRun;
+    const tick = (now: number) => {
+      if (this.dead || id2 !== this.focusRun) return;
+      const t = Math.min(1, (now - start) / 450);
+      const k = t * t * (3 - 2 * t);
+      this.cam.s = from.s + (to.s - from.s) * k;
+      this.cam.x = from.x + (to.x - from.x) * k;
+      this.cam.y = from.y + (to.y - from.y) * k;
+      this.applyCam();
+      if (t < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+    return true;
   }
 
   /** Сменить помещение (экран выбора места). */

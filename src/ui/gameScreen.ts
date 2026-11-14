@@ -8,7 +8,7 @@ import { accountantMonthly, accountBlocked, computeScore, cushionDays, dailyFixe
 import { loanOffer, loansDebt } from '../core/loans';
 import type { Game } from '../core/game';
 import { agencyScore, checklist, contestChance, inspectorById, itemScore } from '../core/inspections';
-import { expectedDailyUsage, stockQty, shelfLife } from '../core/inventory';
+import { expectedDailyUsage, lowStock, stockQty, shelfLife } from '../core/inventory';
 import { closedReason, demandView, hoursPerWeek, rivalItemPrice } from '../core/shop';
 import { loyaltyOf } from '../core/staff';
 import type { DayRecord, ExpenseCategory, GameState, Pending } from '../core/state';
@@ -70,6 +70,7 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
   let menuOpen = false;
   let debugOpen = false;
   let flowsOn = false;
+  let shopsOpen = false;
   const hall = new HallLife();
   const fb = { clear: 0, fun: 0, hard: 0, text: '' };
   let fbCopied = false;
@@ -91,6 +92,7 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
     <div class="gs-toasts" data-ref="toasts" aria-live="polite"></div>
     <div class="it-panel gs-debug" data-ref="menu" hidden></div>
     <div class="it-panel gs-place" data-ref="place" hidden></div>
+    <div class="it-panel gs-shops" data-ref="shops"></div>
     <div class="it-panel gs-win" data-ref="win" role="dialog" aria-label="Управление кофейней" hidden>
       <nav class="gs-nav" data-ref="nav"></nav>
       <div class="gs-win-main"><div class="gs-win-head" data-ref="head"></div><div class="gs-win-body" data-ref="side"></div></div>
@@ -109,6 +111,7 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
   const modalEl = ref('modal');
   const toastsEl = ref('toasts');
   const placeEl = ref('place');
+  const shopsEl = ref('shops');
   const winEl = ref('win');
   const navEl = ref('nav');
   const headEl = ref('head');
@@ -267,6 +270,7 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
     const badges: Partial<Record<Tab, number>> = {
       checks: st.inspections.filter((i) => i.noticeDay <= st.day).length,
       bank: (st.tax.due ? 1 : 0) + st.loans.filter((l) => l.overdue > 0).length,
+      stock: lowStock(st, cfg).length,
     };
     const btn = (id: Tab, name: string) => `<button class="it-tab ${windowOpen && tab === id ? 'on' : ''}" data-tab="${id}" data-k="tab-${id}" aria-pressed="${windowOpen && tab === id}">${name}${badges[id] ? `<span class="gs-badge">${badges[id]}</span>` : ''}</button>`;
     fill(dockEl, TABS.filter(([id]) => id !== 'dates' && id !== 'journal').map(([id, name]) => btn(id, name)).join('') + `<span class="gs-dock-sep"></span><button class="it-tab ${flowsOn ? 'on' : ''}" data-flows data-k="flows" aria-pressed="${flowsOn}">Потоки</button>`);
@@ -302,7 +306,7 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
     if (id === 'tax') {
       const d = st.tax.due;
       return `<header><div class="t"><span class="it-lvl">ГОРОД</span><div class="ttl" style="margin-top:6px">Налоговая</div></div>${closeBtn}</header>
-        <div class="gs-facts">${row('Режим', b.taxes.regimes[st.options.taxRegime].name, '', 'regime')}${row('К оплате', d ? money(taxOwed(st)) : 'ничего', d ? 'loss' : '')}${d ? row(d.filed ? 'Оплатить до' : 'Подать до', `${d.filed ? d.payBy : d.declareBy}-го дня`) : ''}</div>
+        <div class="gs-facts">${row('Режим', b.taxes.regimes[st.options.taxRegime].name, '', 'regime')}${row('К оплате', d ? money(taxOwed(st)) : 'ничего', d ? 'loss' : '')}${d ? row(d.filed ? 'Оплатить до' : 'Подать до', `${dateLabel(d.filed ? d.payBy : d.declareBy, b)}`) : ''}</div>
         <button class="it-btn it-btn--secondary" data-tab="bank" data-k="pl-go">К декларации</button>`;
     }
     if (id === 'depot') {
@@ -541,11 +545,12 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
     const usage = expectedDailyUsage(st, cfg);
     const sup = (Object.keys(b.suppliers) as SupplierId[]).map((id) => `<button class="${st.supplier === id ? 'on' : ''}" data-cmd='${JSON.stringify({ type: 'SetSupplier', supplier: id })}' data-k="sup-${id}">${b.suppliers[id].name}</button>`).join('');
     const step = b.inventory.safetyStep;
+    const low = new Set(lowStock(st, cfg).map((m) => m.id));
     const mats = cfg.materials.map((m) => {
       const qty = stockQty(st, m.id);
       const days = usage[m.id] > 0 ? qty / usage[m.id] : 99;
       const next = m.deliveryEveryDays - ((st.day - 1) % m.deliveryEveryDays);
-      return `<div class="gs-card"><div class="it-row"><b class="grow">${m.name}</b><span class="num ${days < 1 ? 'loss' : ''}">${Math.round(qty)} порц.</span></div>
+      return `<div class="gs-card"><div class="it-row"><b class="grow">${m.name}${low.has(m.id) ? ' <span class="warn">· заканчивается</span>' : ''}</b><span class="num ${days < 1 ? 'loss' : ''}">${Math.round(qty)} порц.</span></div>
         <div class="gs-note">хватит на ${days >= 99 ? '∞' : days.toFixed(1).replace('.', ',')} дн. · поставка ${m.deliveryEveryDays === 1 ? 'каждый день' : 'через ' + next + ' дн.'} · хранится ${shelfLife(st, m, cfg)} дн.</div></div>`;
     }).join('');
     return `<div class="lbl">Поставщик</div><div class="it-seg">${sup}</div><div class="gs-note">${b.suppliers[st.supplier].text}</div>
@@ -973,8 +978,23 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
     tutEl.style.top = `${top}px`;
   }
 
+  /** Список кофеен: клик переносит камеру к зданию. */
+  function renderShops(): void {
+    const st = s();
+    const v = demandView(st, cfg);
+    const item = (id: string, name: string, note: string, cls = '') => `<button class="gs-shop ${cls}" data-focus="${id}" data-k="sh-${id}"><b>${name}</b><span>${note}</span></button>`;
+    const list = shopsOpen
+      ? item('player', st.shopName, `вы · доля ${percent(v.share)}`, 'me')
+        + (st.branch ? item('branch', 'Вторая точка', 'ваш филиал', 'me') : '')
+        + st.competitors.map((c, i) => item('rival' + i, c.name, c.opening ? `строится, ещё ${Math.max(1, c.closedUntilDay - st.day)} дн.` : st.day <= c.closedUntilDay ? 'закрыто' : `доля ${percent(v.rivalShares[i] ?? 0)} · чек ${price(c.avgCheck)}`)).join('')
+      : '';
+    fill(shopsEl, `<button class="it-tab ${shopsOpen ? 'on' : ''}" data-shops data-k="sh-toggle" aria-expanded="${shopsOpen}">Кофейни · ${1 + (st.branch ? 1 : 0) + st.competitors.length}</button>${list}`);
+    shopsEl.hidden = windowOpen;
+  }
+
   function renderAll(): void {
     renderHud();
+    renderShops();
     syncScene();
     renderSide();
     renderMenu();
@@ -1054,6 +1074,11 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
       windowOpen = false;
       game.clock.pause();
     } else if (d.flows !== undefined) flowsOn = !flowsOn;
+    else if (d.shops !== undefined) shopsOpen = !shopsOpen;
+    else if (d.focus) {
+      scene.focus(d.focus);
+      selected = d.focus === 'player' || d.focus === 'branch' ? null : d.focus;
+    }
     else if (d.menu !== undefined) menuOpen = !menuOpen;
     else if (d.close !== undefined) windowOpen = false;
     else if (d.range) chartRange = Number(d.range);

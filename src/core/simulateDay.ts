@@ -7,7 +7,7 @@ import { rollEvents, writeReview } from './events';
 import { say, usd } from './feed';
 import { dailyFixed, payMonthEnd, processTaxes } from './finance';
 import { decayCleanliness, morningInspections, rollUnplanned } from './inspections';
-import { consume, receiveDeliveries, stockQty, writeOffExpired } from './inventory';
+import { consume, lowStock, receiveDeliveries, stockQty, writeOffExpired } from './inventory';
 import { processLoans, rescueAvailable } from './loans';
 import { nextRandom } from './rng';
 import { closedReason, demandView, periodCapacity } from './shop';
@@ -64,6 +64,8 @@ export function simulateDay(state: GameState, cfg: GameConfig = defaultConfig): 
   }
   finishMedBooks(state, cfg);
   if (day > 1) receiveDeliveries(state, cfg);
+  const low = lowStock(state, cfg);
+  if (low.length) say(state, cfg, 'lowStock', 'warn', { materials: low.map((m) => m.name).join(', ') }, 3);
   for (const r of state.receivables.filter((x) => x.day <= day)) state.cash = round2(state.cash + r.amount);
   state.receivables = state.receivables.filter((x) => x.day > day);
   state.flowMods = state.flowMods.filter((m) => m.untilDay >= day);

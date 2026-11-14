@@ -3,6 +3,7 @@ import type { GameConfig } from './config';
 import { AGENCIES } from './config';
 import { cushionDays, taxOwed } from './finance';
 import { agencyScore } from './inspections';
+import { lowStock } from './inventory';
 import { baristas, closedReason, demandView, hasCleaner, hoursPerWeek } from './shop';
 import type { GameState } from './state';
 
@@ -22,6 +23,8 @@ export function advise(state: GameState, cfg: GameConfig): Advice[] {
   const add = (priority: number, tone: Advice['tone'], title: string, text: string, tab: string) => out.push({ priority, tone, title, text, tab });
 
   const closed = closedReason(state, cfg);
+  const low = lowStock(state, cfg);
+  if (low.length) add(70, 'warn', `Заканчивается: ${low.map((m) => m.name.toLowerCase()).join(', ')}`, 'До следующей поставки не хватит. Увеличьте запас или проверьте поставщика во вкладке «Склад».', 'stock');
   if (closed) add(100, 'bad', `Кофейня не работает: ${closed}`, 'Каждый день простоя – минус выручка, а аренда идёт.', closed === 'нет бариста' ? 'staff' : 'overview');
 
   for (const l of state.loans) {

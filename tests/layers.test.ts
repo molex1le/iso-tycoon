@@ -363,3 +363,13 @@ describe('события', () => {
     expect(run()).toEqual(run());
   });
 });
+
+describe('напоминание о сырье', () => {
+  it('пустой склад попадает в список и в ленту', async () => {
+    const { lowStock } = await import('../src/core/inventory');
+    const s = createInitialState(3);
+    expect(lowStock(s, base)).toHaveLength(0);
+    s.inventory.milk = [];
+    expect(lowStock(s, base).map((m) => m.id)).toContain('milk');
+  });
+});
