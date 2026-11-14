@@ -1,7 +1,7 @@
 import { calendarYear, dateLabel, monthIndex, monthOf, seasonOf } from '../core/calendar';
 import type { Speed } from '../core/clock';
 import { announcedInspection, type Command } from '../core/commands';
-import { roleName } from '../core/text';
+import { genderOf, roleName } from '../core/text';
 import { AGENCIES, gameLength, itemCost, type AccountingId, type AgencyId, type EquipmentId, type LoanProductId, type LocationId, type SupplierId } from '../core/config';
 import { eventById, fillVars, optionCost } from '../core/events';
 import { accountantMonthly, accountBlocked, computeScore, cushionDays, dailyFixed, payrollMonthly, taxOwed, upcoming } from '../core/finance';
@@ -9,8 +9,8 @@ import { loanOffer, loansDebt } from '../core/loans';
 import type { Game } from '../core/game';
 import { agencyScore, checklist, contestChance, inspectorById, itemScore } from '../core/inspections';
 import { expectedDailyUsage, lowStock, stockQty, shelfLife } from '../core/inventory';
-import { closedReason, demandView, hoursPerWeek, rivalItemPrice } from '../core/shop';
-import { loyaltyOf } from '../core/staff';
+import { closedReason, demandView, hoursOf, hoursPerWeek, rivalItemPrice, weekdayOf, worksOn } from '../core/shop';
+import { earnedSoFar, loyaltyOf, moodOf, shiftRate, type Mood } from '../core/staff';
 import type { DayRecord, ExpenseCategory, GameState, Pending } from '../core/state';
 import { clockTime, money, monthName, percent, price, signedMoney } from './format';
 import { audio, audioControlsHtml, type Sfx } from './audio';
@@ -520,11 +520,29 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
     const over = hours > b.staff.weeklyNormHours;
     const posts = Array.from({ length: b.staff.maxPosts }, (_, i) => i + 1).map((n) => `<button class="${st.posts === n ? 'on' : ''}" data-cmd='${JSON.stringify({ type: 'SetPosts', posts: n })}' data-k="posts${n}">${n} за стойкой</button>`).join('');
     const who = (role: 'barista' | 'cleaner', exp: number, name: string) => (role === 'cleaner' ? cap(roleName(role, name)) : `Бариста · опыт ${'★'.repeat(exp)}${'☆'.repeat(5 - exp)}`);
+    const DAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+    const today = weekdayOf(st.day);
+    const moods: Record<Mood, [string, string, string]> = { happy: ['доволен', 'довольна', 'money'], ok: ['в порядке', 'в порядке', ''], unhappy: ['недоволен', 'недовольна', 'warn'], leaving: ['думает уйти', 'думает уйти', 'loss'] };
+    const moodChip = (e: GameState['employees'][number]) => {
+      const m = moods[moodOf(e, cfg)];
+      return `<span class="gs-mood ${m[2]}">${genderOf(e.name) === 'f' ? m[1] : m[0]}</span>`;
+    };
+    const schedule = (e: GameState['employees'][number]) => {
+      const h = hoursOf(e, cfg);
+      const days = DAYS.map((d, w) => `<button class="${worksOn(e, w) ? 'on' : ''} ${w === today ? 'today' : ''}" data-cmd='${JSON.stringify({ type: 'SetShift', employeeId: e.id, weekday: w, on: !worksOn(e, w) })}' data-k="sh-${e.id}-${w}" aria-pressed="${worksOn(e, w)}" aria-label="${e.name}, ${d}">${d}</button>`).join('');
+      return `<div class="gs-week">${days}</div><div class="gs-note ${h > b.staff.weeklyNormHours ? 'loss' : ''}">${h} ч в неделю из ${b.staff.weeklyNormHours} · смена ${money(shiftRate(e, cfg))} · начислено за месяц ${money(earnedSoFar(e, cfg))}</div>`;
+    };
+    const pay = (e: GameState['employees'][number]) => `<span class="gs-pay"><button class="it-btn it-btn--secondary gs-step" data-cmd='${JSON.stringify({ type: 'SetSalary', employeeId: e.id, salary: e.salary - b.staff.salaryStep })}' data-k="sal-${e.id}-m" aria-label="${e.name}: снизить зарплату" ${e.salary <= b.staff.salaryMin ? 'disabled' : ''}>−</button><span class="num">${money(e.salary)}</span><button class="it-btn it-btn--secondary gs-step" data-cmd='${JSON.stringify({ type: 'SetSalary', employeeId: e.id, salary: e.salary + b.staff.salaryStep })}' data-k="sal-${e.id}-p" aria-label="${e.name}: поднять зарплату" ${e.salary >= b.staff.salaryMax ? 'disabled' : ''}>+</button></span>`;
+    const cover = DAYS.map((d, w) => {
+      const n = st.employees.filter((e) => e.role === 'barista' && worksOn(e, w)).length;
+      return `<span class="${n === 0 ? 'loss' : n < st.posts ? 'warn' : ''} ${w === today ? 'today' : ''}" title="${n === 0 ? 'Кофейня закрыта' : n < st.posts ? 'Людей меньше, чем постов' : n > st.posts ? 'Лишние на смене: платите, а мощность та же' : 'Всё закрыто'}">${d} ${n}/${st.posts}</span>`;
+    }).join('');
     const team = st.employees.map((e) => {
       const book = e.hasMedBook ? '' : e.medBookReadyDay !== null ? `<span class="warn">медкнижка через ${e.medBookReadyDay - st.day} дн.</span>` : cmd({ type: 'IssueMedBook', employeeId: e.id }, `Медкнижка ${money(b.costs.medBook)}`, 'secondary gs-mini');
       const loyalty = loyaltyOf(e, cfg);
-      return `<div class="gs-card"><div class="it-row"><b class="grow">${e.name}</b><span class="num">${money(e.salary)}</span></div>
-        <div class="gs-note">${who(e.role, e.experience, e.name)} · ${e.official ? 'официально' : '<span class="warn">в конверте</span>'}</div>
+      return `<div class="gs-card"><div class="it-row"><b class="grow">${e.name} ${moodChip(e)}</b>${pay(e)}</div>
+        <div class="gs-note">${who(e.role, e.experience, e.name)} · ${e.official ? 'официально' : '<span class="warn">в конверте</span>'}${e.role === 'cleaner' ? ' · оклад в месяц' : ''}</div>
+        ${e.role === 'barista' ? schedule(e) : ''}
         ${e.role === 'barista' ? `<div class="it-row"><span class="gs-note" style="width:82px">Усталость${q('fatigue')}</span><div class="grow">${bar(e.fatigue, e.fatigue >= b.staff.fatigue.tired ? 'bad' : 'coin')}</div></div>` : ''}
         <div class="it-row"><span class="gs-note" style="width:82px">Лояльность${q('loyalty')}</span><div class="grow">${bar(loyalty, loyalty < b.staff.poachBelow ? 'bad' : '')}</div></div>
         <div class="it-row gs-wrap">${book}${e.official ? '' : cmd({ type: 'Officialize', employeeId: e.id }, 'Оформить', 'secondary gs-mini')}<span class="grow"></span>${cmd({ type: 'Fire', employeeId: e.id, severance: true }, `Уволить, ${money(e.salary)}`, 'ghost gs-mini loss')}${cmd({ type: 'Fire', employeeId: e.id, severance: false }, 'Без компенсации', 'ghost gs-mini loss', `title="Шанс жалобы: ${percent(e.official ? b.staff.complaintNoSeverance : b.staff.complaintEnvelope)}"`)}</div></div>`;
@@ -547,8 +565,10 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
         <div class="gs-note">${effect(c)}</div>
         <div class="it-row">${cmd({ type: 'Hire', candidateId: c.id, official: true }, `Официально, +34%`, 'secondary gs-mini', full(c) ? 'disabled' : '')}${cmd({ type: 'Hire', candidateId: c.id, official: false }, 'В конверте', 'ghost gs-mini', full(c) ? 'disabled' : '')}</div></div>`).join('');
     return `<div class="it-seg">${posts}</div>
-      <div class="gs-facts">${row('Часов в неделю на бариста', Math.round(hours) + ' из ' + b.staff.weeklyNormHours, over ? 'loss' : '', 'hours')}${row('Зарплаты со взносами', money(payrollMonthly(st, cfg)) + ' / мес')}</div>
+      <div class="gs-facts">${row('Часов в неделю, максимум', Math.round(hours) + ' из ' + b.staff.weeklyNormHours, over ? 'loss' : '', 'hours')}${row('Зарплаты со взносами', '≈ ' + money(payrollMonthly(st, cfg)) + ' / мес')}</div>
       ${over ? '<div class="gs-note loss">Переработка: часы сверх нормы оплачиваются ×2, усталость растёт, на 90 люди увольняются.</div>' : ''}
+      <div class="lbl">График смен${q('shifts')}</div><div class="gs-cover">${cover}</div>
+      <div class="it-row"><span class="gs-note grow">${st.autoShifts === false ? 'График ваш. Нажмите день в карточке бариста, чтобы поставить или снять смену.' : 'График расставлен автоматически. Нажмите день в карточке бариста, чтобы править самому.'}</span>${st.autoShifts === false ? cmd({ type: 'AutoShifts' }, 'Расставить автоматически', 'secondary gs-mini') : ''}</div>
       <div class="lbl">Команда</div>${team || '<div class="gs-note loss">Никого нет – кофейня закрыта.</div>'}
       <div class="lbl">Нанять · в штате ${st.employees.length} из ${b.staff.maxStaff}</div>
       <div class="gs-note">Опыт бариста поднимает качество напитков, а с ним репутацию и долю рынка. Команда со средним опытом выше трёх звёзд ещё и работает быстрее.</div>

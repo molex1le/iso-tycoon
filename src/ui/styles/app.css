@@ -266,3 +266,16 @@ html, body { margin: 0; height: 100%; background: var(--surface); }
 .gs-shop:hover, .gs-shop:focus-visible { outline: 2px solid var(--coin); }
 .gs-shop span { font-size: 12px; color: var(--ink-muted); }
 .gs-shop.me b { color: var(--brick); }
+
+/* персонал: настроение, зарплата, график смен */
+.gs-mood { font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 999px; background: var(--panel-inset); color: var(--ink-muted); vertical-align: 1px; white-space: nowrap; }
+.gs-mood.money { color: var(--money); } .gs-mood.warn { color: var(--coin-ink, #8a5a00); } .gs-mood.loss { color: var(--danger); }
+.gs-pay { display: inline-flex; align-items: center; gap: 6px; }
+.gs-pay .gs-step { min-width: 28px; min-height: 28px; padding: 0; }
+.gs-week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.gs-week button { font: 600 12px/1 var(--font-sans); padding: 7px 0; border-radius: 8px; border: 1px solid var(--border); background: none; color: var(--ink-muted); cursor: pointer; }
+.gs-week button.on { background: var(--brick); border-color: var(--brick); color: #fff; }
+.gs-week button.today, .gs-cover span.today { outline: 2px solid var(--coin); outline-offset: 1px; }
+.gs-cover { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.gs-cover span { text-align: center; padding: 5px 0; border-radius: 8px; background: var(--panel-inset); }
+.gs-cover span.loss { color: var(--danger); font-weight: 600; } .gs-cover span.warn { font-weight: 600; }
