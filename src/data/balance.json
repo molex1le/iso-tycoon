@@ -397,12 +397,14 @@
     "start": [
       {
         "name": "Яна Ветрова",
+        "gender": "f",
         "role": "barista",
         "salary": 800,
         "experience": 2
       },
       {
         "name": "Пётр Громов",
+        "gender": "m",
         "role": "barista",
         "salary": 850,
         "experience": 3

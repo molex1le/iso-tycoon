@@ -1,6 +1,7 @@
 import { calendarYear, dateLabel, monthIndex, monthOf, seasonOf } from '../core/calendar';
 import type { Speed } from '../core/clock';
 import { announcedInspection, type Command } from '../core/commands';
+import { roleName } from '../core/text';
 import { AGENCIES, gameLength, itemCost, type AccountingId, type AgencyId, type EquipmentId, type LoanProductId, type LocationId, type SupplierId } from '../core/config';
 import { eventById, fillVars, optionCost } from '../core/events';
 import { accountantMonthly, accountBlocked, computeScore, cushionDays, dailyFixed, payrollMonthly, taxOwed, upcoming } from '../core/finance';
@@ -43,6 +44,7 @@ const OUTCOMES = {
   closed: ['Кофейня закрыта', 'Приостановки дольше 30 дней – арендодатель расторг договор.'],
   criminal: ['Уголовное дело', 'Инспектор записал разговор. Взятка должностному лицу – конец игры.'],
 } as const;
+const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 const stars = (n: number) => n.toFixed(1).replace('.', ',');
 type TipKey = keyof typeof tips;
 const q = (key: TipKey) => `<span class="gs-q" tabindex="0" role="note" aria-label="${tips[key]}" data-tip="${tips[key]}">?</span>`;
@@ -494,19 +496,19 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
     const hours = hoursPerWeek(st, cfg);
     const over = hours > b.staff.weeklyNormHours;
     const posts = [1, 2].map((n) => `<button class="${st.posts === n ? 'on' : ''}" data-cmd='${JSON.stringify({ type: 'SetPosts', posts: n })}' data-k="posts${n}">${n} за стойкой</button>`).join('');
-    const who = (role: string, exp: number) => (role === 'cleaner' ? 'Уборщица' : `Бариста · опыт ${'★'.repeat(exp)}${'☆'.repeat(5 - exp)}`);
+    const who = (role: 'barista' | 'cleaner', exp: number, name: string) => (role === 'cleaner' ? cap(roleName(role, name)) : `Бариста · опыт ${'★'.repeat(exp)}${'☆'.repeat(5 - exp)}`);
     const team = st.employees.map((e) => {
       const book = e.hasMedBook ? '' : e.medBookReadyDay !== null ? `<span class="warn">медкнижка через ${e.medBookReadyDay - st.day} дн.</span>` : cmd({ type: 'IssueMedBook', employeeId: e.id }, `Медкнижка ${money(b.costs.medBook)}`, 'secondary gs-mini');
       const loyalty = loyaltyOf(e, cfg);
       return `<div class="gs-card"><div class="it-row"><b class="grow">${e.name}</b><span class="num">${money(e.salary)}</span></div>
-        <div class="gs-note">${who(e.role, e.experience)} · ${e.official ? 'официально' : '<span class="warn">в конверте</span>'}</div>
+        <div class="gs-note">${who(e.role, e.experience, e.name)} · ${e.official ? 'официально' : '<span class="warn">в конверте</span>'}</div>
         ${e.role === 'barista' ? `<div class="it-row"><span class="gs-note" style="width:82px">Усталость${q('fatigue')}</span><div class="grow">${bar(e.fatigue, e.fatigue >= b.staff.fatigue.tired ? 'bad' : 'coin')}</div></div>` : ''}
         <div class="it-row"><span class="gs-note" style="width:82px">Лояльность${q('loyalty')}</span><div class="grow">${bar(loyalty, loyalty < b.staff.poachBelow ? 'bad' : '')}</div></div>
         <div class="it-row gs-wrap">${book}${e.official ? '' : cmd({ type: 'Officialize', employeeId: e.id }, 'Оформить', 'secondary gs-mini')}<span class="grow"></span>${cmd({ type: 'Fire', employeeId: e.id, severance: true }, `Уволить, ${money(e.salary)}`, 'ghost gs-mini loss')}${cmd({ type: 'Fire', employeeId: e.id, severance: false }, 'Без компенсации', 'ghost gs-mini loss', `title="Шанс жалобы: ${percent(e.official ? b.staff.complaintNoSeverance : b.staff.complaintEnvelope)}"`)}</div></div>`;
     }).join('');
     const full = (c: GameState['candidates'][number]) => st.employees.length >= b.staff.maxStaff || (c.role === 'cleaner' && st.employees.some((e) => e.role === 'cleaner'));
     const cands = st.candidates.map((c) => `<div class="gs-card"><div class="it-row"><b class="grow">${c.name}</b><span class="num">${money(c.salary)}</span></div>
-        <div class="gs-note">${who(c.role, c.experience)} · ${c.hasMedBook ? 'медкнижка есть' : '<span class="warn">без медкнижки</span>'}</div>
+        <div class="gs-note">${who(c.role, c.experience, c.name)} · ${c.hasMedBook ? 'медкнижка есть' : '<span class="warn">без медкнижки</span>'}</div>
         <div class="it-row">${cmd({ type: 'Hire', candidateId: c.id, official: true }, `Официально, +34%`, 'secondary gs-mini', full(c) ? 'disabled' : '')}${cmd({ type: 'Hire', candidateId: c.id, official: false }, 'В конверте', 'ghost gs-mini', full(c) ? 'disabled' : '')}</div></div>`).join('');
     return `<div class="it-seg">${posts}</div>
       <div class="gs-facts">${row('Часов в неделю на бариста', Math.round(hours) + ' из ' + b.staff.weeklyNormHours, over ? 'loss' : '', 'hours')}${row('Зарплаты со взносами', money(payrollMonthly(st, cfg)) + ' / мес')}</div>

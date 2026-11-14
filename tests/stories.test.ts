@@ -94,3 +94,17 @@ describe('итог партии', () => {
     expect(r.firstNegativeDay).toBe(21);
   });
 });
+
+describe('пол работников', () => {
+  it('имя, должность и глаголы согласованы', async () => {
+    const { fillText, genderOf, roleName } = await import('../src/core/text');
+    expect(genderOf('Илья Роднин')).toBe('m');
+    expect(genderOf('Савва Лунёв')).toBe('m');
+    expect(genderOf('Яна Ветрова')).toBe('f');
+    expect(roleName('cleaner', 'Марк Велесов')).toBe('уборщик');
+    expect(roleName('cleaner', 'Алина Сомова')).toBe('уборщица');
+    expect(fillText('{name} уволи[лся|лась]', { name: 'Вера Жданова' })).toBe('Вера Жданова уволилась');
+    expect(fillText('{name} уволи[лся|лась]', { name: 'Глеб Тарасов' })).toBe('Глеб Тарасов уволился');
+    expect(fillText('Принят[|а] на работу: {name}', { name: 'Глеб Тарасов' })).toBe('Принят на работу: Глеб Тарасов');
+  });
+});

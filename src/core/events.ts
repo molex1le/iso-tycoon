@@ -8,6 +8,7 @@ import { nextRandom } from './rng';
 import { baristas, demandView, machineOrdersPerHour } from './shop';
 import { loyaltyOf, traitOf } from './staff';
 import type { Employee, GameState, Pending } from './state';
+import { fillText } from './text';
 
 type EventPending = Extract<Pending, { kind: 'event' }>;
 
@@ -18,7 +19,7 @@ export function eventById(cfg: GameConfig, id: string): EventDef {
 }
 
 export function fillVars(text: string, vars: Record<string, string>): string {
-  return text.replace(/\{(\w+)\}/g, (_, k: string) => vars[k] ?? '');
+  return fillText(text, vars);
 }
 
 function pickReview(state: GameState, cfg: GameConfig, kind: string): string {
@@ -172,7 +173,7 @@ export function chooseOption(state: GameState, cfg: GameConfig, index: number): 
     const chance = o.chance === 'grade' ? 0.8 - g.indexOf(state.grade) * 0.15 : o.chance;
     const ok = nextRandom(state) < chance;
     if (!ok) fx = o.fxFail ?? {};
-    say(state, cfg, 'eventResult', ok ? 'ok' : 'bad', { title: fillVars(e.title, p.vars), text: (ok ? o.okText : o.failText) ?? '' });
+    say(state, cfg, 'eventResult', ok ? 'ok' : 'bad', { title: fillVars(e.title, p.vars), text: fillVars((ok ? o.okText : o.failText) ?? '', p.vars) });
   }
   applyFx(state, cfg, fx, target);
   return true;

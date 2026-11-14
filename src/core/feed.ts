@@ -1,11 +1,9 @@
 import type { GameConfig } from './config';
 import type { FeedEntry, GameState } from './state';
+import { fillText as fill } from './text';
 
 const FEED_LIMIT = 200;
 
-function fill(template: string, vars: Record<string, string | number>): string {
-  return template.replace(/\{(\w+)\}/g, (_, k: string) => String(vars[k] ?? ''));
-}
 
 /** Сумма для текстов ленты: «$1 250». */
 export function usd(n: number): string {

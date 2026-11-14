@@ -1,6 +1,7 @@
 /* Зал кофейни в разрезе: всё купленное видно сразу. Только отображение. */
 import type { GameConfig } from '../../core/config';
 import type { GameState } from '../../core/state';
+import { genderOf } from '../../core/text';
 import { hash, Pen, svgEl } from './pen';
 
 function person(x: number, y: number, body: string, extra = ''): string {
@@ -150,9 +151,10 @@ export function interiorSvg(st: GameState, cfg: GameConfig, title: string): stri
 
   // стойка: бариста стоят за ней
   const team = st.employees.filter((e) => e.role === 'barista').slice(0, st.posts);
-  team.forEach((_, i) => {
+  team.forEach((e, i) => {
+    const hair = genderOf(e.name) === 'f' ? '<path class="hair" d="M-3.1,-13.2a3.1,3.1 0 0 1 6.2,0v3.4h-1.3v-3a1.8,1.8 0 0 0 -3.6,0v3h-1.3z"/>' : '';
     const [px, py] = pen.pt(2.2 + i * 2, 0.62, 12);
-    push(0.5 + i, () => root.insertAdjacentHTML('beforeend', `<g data-goto-tab="staff" class="hot" tabindex="0" role="button" aria-label="Бариста"><g class="barista-work" style="animation-delay:${-i * 1.3}s">${person(px, py, 'apron', '<rect class="cap" x="-3" y="-16.8" width="6" height="1.8" rx=".8"/>')}</g></g>`));
+    push(0.5 + i, () => root.insertAdjacentHTML('beforeend', `<g data-goto-tab="staff" class="hot" tabindex="0" role="button" aria-label="${e.name}"><g class="barista-work" style="animation-delay:${-i * 1.3}s">${person(px, py, 'apron', hair + '<rect class="cap" x="-3" y="-16.8" width="6" height="1.8" rx=".8"/>')}</g></g>`));
   });
   push(3, () => {
     pen.box(1, 1.2, Math.min(w - 2, 5.5), 0.85, 0, 26, 'wood');

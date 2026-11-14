@@ -180,7 +180,7 @@ export const defaultConfig: GameConfig = {
   inspections: inspectionsJson,
   inspectors: inspectorsJson,
   dialogues: dialoguesJson as Dialogues,
-  names: namesJson,
+  names: namesJson.map((n) => n.name),
   events: eventsJson as unknown as EventDef[],
   reviews: reviewsJson,
   texts: textsJson,

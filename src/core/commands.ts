@@ -4,6 +4,7 @@ import { continueYear } from './years';
 import { clamp, defaultConfig, round2, type AccountingId, type AgencyId, type EquipmentId, type GameConfig, type LoanProductId, type SupplierId } from './config';
 import { chooseOption } from './events';
 import { say, usd } from './feed';
+import { roleName } from './text';
 import { fileDeclaration, payTax, spend } from './finance';
 import { answerInspector, checklist, itemScore, resolveVisit, triggerUnplanned, type Reply } from './inspections';
 import { repayLoan, restructure, takeLoan } from './loans';
@@ -79,7 +80,7 @@ function run(state: GameState, command: Command, cfg: GameConfig): boolean {
       if (c.role === 'cleaner' && state.employees.some((e) => e.role === 'cleaner')) return false;
       state.candidates = state.candidates.filter((x) => x.id !== c.id);
       state.employees.push({ ...c, medBookReadyDay: null, fatigue: 0, hiredDay: state.day, official: command.official !== false, loyaltyBonus: 0 });
-      say(state, cfg, 'hired', 'ok', { name: c.name, role: c.role === 'cleaner' ? 'уборщица' : 'бариста', amount: usd(c.salary) });
+      say(state, cfg, 'hired', 'ok', { name: c.name, role: roleName(c.role, c.name), amount: usd(c.salary) });
       return true;
     }
     case 'Fire': {
