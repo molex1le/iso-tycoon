@@ -126,7 +126,7 @@
     },
     "realism": {
       "name": "Реализм",
-      "startCapital": 20000,
+      "startCapital": 18500,
       "unplannedMultiplier": 1,
       "unplannedNoticeDays": 1,
       "formalists": true,
@@ -135,7 +135,7 @@
     },
     "survival": {
       "name": "Выживание",
-      "startCapital": 13000,
+      "startCapital": 12500,
       "unplannedMultiplier": 1.4,
       "unplannedNoticeDays": 0,
       "formalists": true,

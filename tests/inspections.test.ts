@@ -250,7 +250,7 @@ describe('финансовые сводки', () => {
     const sc = computeScore(s, cfg);
     expect(sc.equipment).toBe((4000 + 400 + 2500 + 800) / 2);
     expect(sc.deposit).toBe(4800);
-    expect(sc.total).toBeCloseTo(s.cash + sc.equipment + 4800 - 20000, 2);
+    expect(sc.total).toBeCloseTo(s.cash + sc.equipment + 4800 - 18500, 2);
     expect(sc.medal).toBeNull();
   });
 });

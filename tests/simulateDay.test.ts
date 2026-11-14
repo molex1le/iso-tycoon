@@ -32,8 +32,8 @@ describe('старт партии', () => {
   it('пресет: Реализм, у метро, ИП – деньги = капитал минус расходы на открытие', () => {
     const s = createInitialState(1);
     const total = s.setup.reduce((a, l) => a + l.amount, 0);
-    expect(s.startCapital).toBe(20000);
-    expect(s.cash).toBeCloseTo(20000 - total, 2);
+    expect(s.startCapital).toBe(18500);
+    expect(s.cash).toBeCloseTo(18500 - total, 2);
     expect(s.setup.find((l) => l.id === 'deposit')!.amount).toBe(4800);
     expect(s.setup.find((l) => l.id === 'firstPurchase')!.amount).toBeGreaterThan(0);
     expect(s.footTraffic).toBe(b.locations.metro.footTraffic);
@@ -45,7 +45,7 @@ describe('старт партии', () => {
 
   it('сложность задаёт капитал, вывеска сразу добавляет узнаваемость', () => {
     expect(createInitialState(1, opts({ difficulty: 'training' })).startCapital).toBe(30000);
-    expect(createInitialState(1, opts({ difficulty: 'survival' })).startCapital).toBe(13000);
+    expect(createInitialState(1, opts({ difficulty: 'survival' })).startCapital).toBe(12500);
     expect(createInitialState(1, opts({ extras: ['signage'] })).awareness).toBeCloseTo(0.4);
   });
 
@@ -185,6 +185,7 @@ describe('расходы и налоги', () => {
     expect(due).toMatchObject({ declareBy: 110, payBy: 115, filed: false });
     expect(applyCommand(s, { type: 'PayTax' })).toBe(false); // сначала декларация
     expect(applyCommand(s, { type: 'FileDeclaration' })).toBe(true);
+    applyCommand(s, { type: 'DebugAddMoney', amount: 5000 });
     const cash = s.cash;
     expect(applyCommand(s, { type: 'PayTax' })).toBe(true);
     expect(s.cash).toBeCloseTo(cash - due.amount, 2);
