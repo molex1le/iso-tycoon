@@ -8,6 +8,10 @@ export function baristas(state: GameState) {
   return state.employees.filter((e) => e.role === 'barista');
 }
 
+export function cleaners(state: GameState): number {
+  return state.employees.filter((e) => e.role === 'cleaner').length;
+}
+
 export function hasCleaner(state: GameState): boolean {
   return state.employees.some((e) => e.role === 'cleaner');
 }
@@ -21,10 +25,18 @@ export function staffedPosts(state: GameState): number {
   return Math.min(state.posts, baristas(state).length);
 }
 
+/** Опытная команда работает быстрее: +5% за каждую звезду среднего опыта выше трёх. */
+export function speedFactor(state: GameState, cfg: GameConfig): number {
+  const team = baristas(state);
+  if (team.length === 0) return 1;
+  const exp = team.reduce((a, e) => a + e.experience, 0) / team.length;
+  return 1 + Math.max(0, exp - 3) * cfg.balance.staff.experienceSpeed;
+}
+
 /** Мощность за один период дня: минимум из бариста на смене и кофемашины. */
 export function periodCapacity(state: GameState, cfg: GameConfig): number {
   const c = cfg.balance.capacity;
-  return Math.min(staffedPosts(state) * c.ordersPerBaristaHour, machineOrdersPerHour(state, cfg)) * c.hoursPerPeriod;
+  return Math.min(staffedPosts(state) * c.ordersPerBaristaHour * speedFactor(state, cfg), machineOrdersPerHour(state, cfg)) * c.hoursPerPeriod;
 }
 
 /** Почему кофейня не работает сегодня; null – работает. */

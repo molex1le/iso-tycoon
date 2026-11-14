@@ -509,7 +509,7 @@ export function pickInspectorId(state: GameState, cfg: GameConfig, agency: Agenc
 }
 
 /** Раз в неделю приходят новые кандидаты. */
-export function refreshCandidates(state: GameState, cfg: GameConfig): void {
+export function refreshCandidates(state: GameState, cfg: GameConfig, starMinExperience = 0): void {
   const s = cfg.balance.staff;
   const taken = new Set([...state.employees.map((e) => e.name)]);
   const out: Candidate[] = [];
@@ -519,8 +519,11 @@ export function refreshCandidates(state: GameState, cfg: GameConfig): void {
       name = cfg.names[(cfg.names.indexOf(name) + 1) % cfg.names.length];
     }
     taken.add(name);
-    const cleaner = nextRandom(state) < s.cleanerChance;
-    const experience = 1 + Math.floor(nextRandom(state) * 5);
+    // по объявлению первый кандидат – опытный бариста
+    const star = starMinExperience > 0 && i === 0;
+    const cleaner = nextRandom(state) < s.cleanerChance && !star;
+    const rolled = 1 + Math.floor(nextRandom(state) * 5);
+    const experience = star ? Math.max(starMinExperience, rolled) : rolled;
     const noise = Math.round((nextRandom(state) * 2 - 1) * s.baristaSalaryNoise);
     const hasMedBook = nextRandom(state) < s.medBookChance;
     out.push({

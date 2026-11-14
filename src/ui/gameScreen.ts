@@ -518,7 +518,7 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
     const st = s();
     const hours = hoursPerWeek(st, cfg);
     const over = hours > b.staff.weeklyNormHours;
-    const posts = [1, 2].map((n) => `<button class="${st.posts === n ? 'on' : ''}" data-cmd='${JSON.stringify({ type: 'SetPosts', posts: n })}' data-k="posts${n}">${n} за стойкой</button>`).join('');
+    const posts = Array.from({ length: b.staff.maxPosts }, (_, i) => i + 1).map((n) => `<button class="${st.posts === n ? 'on' : ''}" data-cmd='${JSON.stringify({ type: 'SetPosts', posts: n })}' data-k="posts${n}">${n} за стойкой</button>`).join('');
     const who = (role: 'barista' | 'cleaner', exp: number, name: string) => (role === 'cleaner' ? cap(roleName(role, name)) : `Бариста · опыт ${'★'.repeat(exp)}${'☆'.repeat(5 - exp)}`);
     const team = st.employees.map((e) => {
       const book = e.hasMedBook ? '' : e.medBookReadyDay !== null ? `<span class="warn">медкнижка через ${e.medBookReadyDay - st.day} дн.</span>` : cmd({ type: 'IssueMedBook', employeeId: e.id }, `Медкнижка ${money(b.costs.medBook)}`, 'secondary gs-mini');
@@ -529,15 +529,31 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
         <div class="it-row"><span class="gs-note" style="width:82px">Лояльность${q('loyalty')}</span><div class="grow">${bar(loyalty, loyalty < b.staff.poachBelow ? 'bad' : '')}</div></div>
         <div class="it-row gs-wrap">${book}${e.official ? '' : cmd({ type: 'Officialize', employeeId: e.id }, 'Оформить', 'secondary gs-mini')}<span class="grow"></span>${cmd({ type: 'Fire', employeeId: e.id, severance: true }, `Уволить, ${money(e.salary)}`, 'ghost gs-mini loss')}${cmd({ type: 'Fire', employeeId: e.id, severance: false }, 'Без компенсации', 'ghost gs-mini loss', `title="Шанс жалобы: ${percent(e.official ? b.staff.complaintNoSeverance : b.staff.complaintEnvelope)}"`)}</div></div>`;
     }).join('');
-    const full = (c: GameState['candidates'][number]) => st.employees.length >= b.staff.maxStaff || (c.role === 'cleaner' && st.employees.some((e) => e.role === 'cleaner'));
+    const full = (c: GameState['candidates'][number]) => st.employees.length >= b.staff.maxStaff || (c.role === 'cleaner' && st.employees.filter((e) => e.role === 'cleaner').length >= b.staff.maxCleaners);
+    const signed = (n: number) => (n >= 0 ? '+' : '−') + Math.abs(n).toFixed(2).replace('.', ',');
+    // что даст кандидат: как изменится средний опыт команды, а с ним качество и скорость
+    const effect = (c: GameState['candidates'][number]) => {
+      if (c.role === 'cleaner') return 'Чистота падает медленнее: меньше риск штрафа СЭС и выше качество';
+      const team = st.employees.filter((e) => e.role === 'barista');
+      const avg = (list: { experience: number }[]) => (list.length ? list.reduce((a, e) => a + e.experience, 0) / list.length : 3);
+      const before = avg(team);
+      const after = avg([...team, c]);
+      const dq = (after - before) * b.staff.experienceQuality;
+      const ds = (Math.max(0, after - 3) - Math.max(0, before - 3)) * b.staff.experienceSpeed;
+      return `Качество ${signed(dq)}${ds ? ` · скорость ${ds > 0 ? '+' : '−'}${Math.abs(Math.round(ds * 100))}%` : ''} · часов на каждого станет меньше`;
+    };
     const cands = st.candidates.map((c) => `<div class="gs-card"><div class="it-row"><b class="grow">${c.name}</b><span class="num">${money(c.salary)}</span></div>
         <div class="gs-note">${who(c.role, c.experience, c.name)} · ${c.hasMedBook ? 'медкнижка есть' : '<span class="warn">без медкнижки</span>'}</div>
+        <div class="gs-note">${effect(c)}</div>
         <div class="it-row">${cmd({ type: 'Hire', candidateId: c.id, official: true }, `Официально, +34%`, 'secondary gs-mini', full(c) ? 'disabled' : '')}${cmd({ type: 'Hire', candidateId: c.id, official: false }, 'В конверте', 'ghost gs-mini', full(c) ? 'disabled' : '')}</div></div>`).join('');
     return `<div class="it-seg">${posts}</div>
       <div class="gs-facts">${row('Часов в неделю на бариста', Math.round(hours) + ' из ' + b.staff.weeklyNormHours, over ? 'loss' : '', 'hours')}${row('Зарплаты со взносами', money(payrollMonthly(st, cfg)) + ' / мес')}</div>
       ${over ? '<div class="gs-note loss">Переработка: часы сверх нормы оплачиваются ×2, усталость растёт, на 90 люди увольняются.</div>' : ''}
       <div class="lbl">Команда</div>${team || '<div class="gs-note loss">Никого нет – кофейня закрыта.</div>'}
-      <div class="lbl">Кандидаты этой недели</div>${cands || '<div class="gs-note">Новые придут в начале недели.</div>'}`;
+      <div class="lbl">Нанять · в штате ${st.employees.length} из ${b.staff.maxStaff}</div>
+      <div class="gs-note">Опыт бариста поднимает качество напитков, а с ним репутацию и долю рынка. Команда со средним опытом выше трёх звёзд ещё и работает быстрее.</div>
+      ${cands || '<div class="gs-note">Новые кандидаты придут в начале недели.</div>'}
+      <div class="it-row">${cmd({ type: 'PostVacancy' }, `Дать объявление, ${money(b.staff.vacancyCost)}`, 'secondary gs-mini', st.cash < b.staff.vacancyCost ? 'disabled' : '')}<span class="gs-note grow">Новые кандидаты сразу, среди них точно бариста с опытом от ${b.staff.vacancyMinExperience} звёзд</span></div>`;
   }
 
   function stockHtml(): string {

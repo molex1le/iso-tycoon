@@ -38,7 +38,7 @@ describe('старт партии', () => {
     expect(s.setup.find((l) => l.id === 'firstPurchase')!.amount).toBeGreaterThan(0);
     expect(s.footTraffic).toBe(b.locations.metro.footTraffic);
     expect(s.employees.filter((e) => e.role === 'barista')).toHaveLength(2);
-    expect(s.candidates).toHaveLength(3);
+    expect(s.candidates).toHaveLength(4);
     expect(s.equipment).toEqual(expect.arrayContaining(['machineBasic', 'register', 'fridge', 'furniture']));
     expect(s.inspections[0]).toMatchObject({ reason: 'planned', visitDay: 75, noticeDay: 65 });
   });
@@ -143,7 +143,7 @@ describe('simulateDay: спрос и продажи', () => {
     expect(periodCapacity(s, defaultConfig)).toBe(240);
     s.employees = s.employees.slice(0, 1);
     expect(periodCapacity(s, defaultConfig)).toBe(120);
-    expect(applyCommand(s, { type: 'SetPosts', posts: 3 })).toBe(false);
+    expect(applyCommand(s, { type: 'SetPosts', posts: 4 })).toBe(false);
   });
 
   it('без бариста кофейня закрыта', () => {
@@ -294,7 +294,7 @@ describe('персонал', () => {
     const c = s.candidates.find((x) => x.role === 'barista') ?? s.candidates[0];
     expect(applyCommand(s, { type: 'Hire', candidateId: c.id })).toBe(true);
     expect(s.employees.some((e) => e.id === c.id)).toBe(true);
-    expect(s.candidates).toHaveLength(2);
+    expect(s.candidates).toHaveLength(3);
     const cash = s.cash;
     expect(applyCommand(s, { type: 'Fire', employeeId: c.id })).toBe(true);
     expect(s.cash).toBeCloseTo(cash - c.salary, 2);

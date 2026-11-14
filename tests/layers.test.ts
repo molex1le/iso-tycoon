@@ -373,3 +373,29 @@ describe('напоминание о сырье', () => {
     expect(lowStock(s, base).map((m) => m.id)).toContain('milk');
   });
 });
+
+describe('найм', () => {
+  it('объявление стоит денег и приводит опытного бариста', () => {
+    const s = createInitialState(5);
+    const cash = s.cash;
+    expect(applyCommand(s, { type: 'PostVacancy' })).toBe(true);
+    expect(s.cash).toBe(cash - base.balance.staff.vacancyCost);
+    expect(s.candidates[0].role).toBe('barista');
+    expect(s.candidates[0].experience).toBeGreaterThanOrEqual(base.balance.staff.vacancyMinExperience);
+  });
+
+  it('штат до 10 человек, уборщиц не больше двух', () => {
+    const s = createInitialState(5);
+    s.cash = 1e6;
+    let guard = 0;
+    while (s.employees.length < base.balance.staff.maxStaff && guard++ < 200) {
+      const c = s.candidates.find((x) => x.role === 'barista' || s.employees.filter((e) => e.role === 'cleaner').length < 2);
+      if (c) applyCommand(s, { type: 'Hire', candidateId: c.id });
+      else applyCommand(s, { type: 'PostVacancy' });
+    }
+    expect(s.employees).toHaveLength(10);
+    expect(s.employees.filter((e) => e.role === 'cleaner').length).toBeLessThanOrEqual(2);
+    const extra = s.candidates[0] ?? (applyCommand(s, { type: 'PostVacancy' }), s.candidates[0]);
+    expect(applyCommand(s, { type: 'Hire', candidateId: extra.id })).toBe(false);
+  });
+});

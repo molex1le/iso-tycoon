@@ -11,7 +11,7 @@ import { repayLoan, restructure, takeLoan } from './loans';
 import { nextRandom } from './rng';
 import type { WeatherId } from './weather';
 import { simulateDay } from './simulateDay';
-import { createInitialState, type GameState, type LoggedCommand, type NewGameOptions } from './state';
+import { createInitialState, refreshCandidates, type GameState, type LoggedCommand, type NewGameOptions } from './state';
 
 /** Любое действие игрока – объект-команда. UI ничего не меняет в состоянии сам. */
 export type Command =
@@ -20,6 +20,7 @@ export type Command =
   | { type: 'Fire'; employeeId: number; severance?: boolean }
   | { type: 'Officialize'; employeeId: number }
   | { type: 'SetPosts'; posts: number }
+  | { type: 'PostVacancy' }
   | { type: 'IssueMedBook'; employeeId: number }
   | { type: 'SetSupplier'; supplier: SupplierId }
   | { type: 'SetSafety'; factor: number }
@@ -77,7 +78,7 @@ function run(state: GameState, command: Command, cfg: GameConfig): boolean {
     case 'Hire': {
       const c = state.candidates.find((x) => x.id === command.candidateId);
       if (!c || state.employees.length >= b.staff.maxStaff) return false;
-      if (c.role === 'cleaner' && state.employees.some((e) => e.role === 'cleaner')) return false;
+      if (c.role === 'cleaner' && state.employees.filter((e) => e.role === 'cleaner').length >= b.staff.maxCleaners) return false;
       state.candidates = state.candidates.filter((x) => x.id !== c.id);
       state.employees.push({ ...c, medBookReadyDay: null, fatigue: 0, hiredDay: state.day, official: command.official !== false, loyaltyBonus: 0 });
       say(state, cfg, 'hired', 'ok', { name: c.name, role: roleName(c.role, c.name), amount: usd(c.salary) });
@@ -101,6 +102,14 @@ function run(state: GameState, command: Command, cfg: GameConfig): boolean {
       const e = state.employees.find((x) => x.id === command.employeeId);
       if (!e || e.official) return false;
       e.official = true;
+      return true;
+    }
+    case 'PostVacancy': {
+      // платное объявление: новые кандидаты сразу, среди них точно есть опытный бариста
+      if (state.cash < b.staff.vacancyCost) return false;
+      spend(state, 'services', b.staff.vacancyCost);
+      refreshCandidates(state, cfg, b.staff.vacancyMinExperience);
+      say(state, cfg, 'vacancy', 'info', { amount: usd(b.staff.vacancyCost), n: state.candidates.length });
       return true;
     }
     case 'SetPosts': {

@@ -2,7 +2,7 @@ import { AGENCIES, clamp, gameLength, round2, type AgencyId, type ChecklistItem,
 import { say, usd } from './feed';
 import { spend } from './finance';
 import { nextRandom } from './rng';
-import { hasCleaner, hoursPerWeek } from './shop';
+import { cleaners, hoursPerWeek } from './shop';
 import { pickInspectorId, type GameState, type Inspection, type InspectorMemory, type Pending, type VisitResult } from './state';
 
 export type Reply = 'explain' | 'admit' | 'argue';
@@ -98,7 +98,8 @@ export function sesScore(state: GameState, cfg: GameConfig, known = false): numb
 export function decayCleanliness(state: GameState, cfg: GameConfig): void {
   const c = cfg.balance.compliance;
   let decay = c.decayPerDay + (state.defect && state.defectType === 'damp' ? c.dampExtraDecay : 0);
-  if (hasCleaner(state)) decay /= c.cleanerDivider;
+  // первая уборщица делит грязь на cleanerDivider, вторая добавляет ещё столько же
+  decay /= 1 + (c.cleanerDivider - 1) * cleaners(state);
   state.cleanliness = clamp(round2(state.cleanliness - decay), 0, 100);
 }
 
