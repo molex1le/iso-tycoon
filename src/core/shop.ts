@@ -95,6 +95,15 @@ export function flowSources(state: GameState, cfg: GameConfig, day = state.day):
   return out;
 }
 
+/** Цена позиции у конкурента: его средний чек относительно чека по стартовым ценам, с шагом цен. */
+export function rivalItemPrice(rival: { avgCheck: number }, itemId: string, cfg: GameConfig): number {
+  const item = cfg.items.find((i) => i.id === itemId);
+  if (!item) return 0;
+  const base = averageCheck(Object.fromEntries(cfg.items.map((i) => [i.id, i.defaultPrice])), cfg.items);
+  const step = cfg.balance.prices.step;
+  return Math.round((item.defaultPrice * rival.avgCheck) / base / step) * step;
+}
+
 export function demandView(state: GameState, cfg: GameConfig, day = state.day): DemandView {
   const b = cfg.balance;
   const quality = currentQuality(state, cfg);

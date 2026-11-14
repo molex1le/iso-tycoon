@@ -129,3 +129,33 @@ export function bindCharts(host: HTMLElement, showTip: (html: string, x: number,
     hideTip();
   });
 }
+
+export interface Slice {
+  name: string;
+  color: string;
+  /** доля 0..1 */
+  value: number;
+}
+
+/** Круговая диаграмма долей: кольцо с зазорами, подпись в центре, легенда с процентами. */
+export function donutChart(title: string, slices: Slice[], center: { value: string; label: string }): string {
+  const R = 42;
+  const C = 2 * Math.PI * R;
+  const total = slices.reduce((a, x) => a + x.value, 0) || 1;
+  const gap = 2;
+  let offset = 0;
+  const arcs = slices
+    .filter((x) => x.value > 0)
+    .map((x) => {
+      const len = (x.value / total) * C;
+      const arc = `<circle class="c-slice" cx="60" cy="60" r="${R}" style="stroke:${x.color}" stroke-dasharray="${Math.max(0.5, len - gap).toFixed(2)} ${(C - Math.max(0.5, len - gap)).toFixed(2)}" stroke-dashoffset="${(-offset).toFixed(2)}"><title>${x.name}: ${Math.round((x.value / total) * 100)}%</title></circle>`;
+      offset += len;
+      return arc;
+    })
+    .join('');
+  const legend = slices.map((x) => `<div class="c-tip"><i style="background:${x.color}"></i><span>${x.name}</span><b>${Math.round((x.value / total) * 100)}%</b></div>`).join('');
+  return `<div class="gs-chart gs-donut"><div class="lbl">${title}</div><div class="gs-donut-body">
+    <svg viewBox="0 0 120 120" role="img" aria-label="${title}"><g transform="rotate(-90 60 60)">${arcs}</g>
+      <text class="c-center" x="60" y="58" text-anchor="middle">${center.value}</text><text class="c-center-lbl" x="60" y="73" text-anchor="middle">${center.label}</text></svg>
+    <div class="gs-donut-legend">${legend}</div></div></div>`;
+}

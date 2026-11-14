@@ -9,12 +9,12 @@ import { loanOffer, loansDebt } from '../core/loans';
 import type { Game } from '../core/game';
 import { agencyScore, checklist, contestChance, inspectorById, itemScore } from '../core/inspections';
 import { expectedDailyUsage, stockQty, shelfLife } from '../core/inventory';
-import { closedReason, demandView, hoursPerWeek } from '../core/shop';
+import { closedReason, demandView, hoursPerWeek, rivalItemPrice } from '../core/shop';
 import { loyaltyOf } from '../core/staff';
 import type { DayRecord, ExpenseCategory, GameState, Pending } from '../core/state';
 import { clockTime, money, monthName, percent, price, signedMoney } from './format';
 import { audio, audioControlsHtml, type Sfx } from './audio';
-import { bindCharts, clearCharts, lineChart } from './charts';
+import { bindCharts, clearCharts, donutChart, lineChart } from './charts';
 import { nightFactor, SceneView } from './scene/sceneView';
 import { devMode, settings, saveSettings } from './settings';
 import scenarioData from '../data/devScenarios.json';
@@ -369,6 +369,15 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
     }</div>`;
   }
 
+  function shareDonut(): string {
+    const st = s();
+    const v = demandView(st, cfg);
+    const colors = ['var(--c2)', 'var(--c3)', 'var(--c4)', 'var(--c4)'];
+    const rivals = st.competitors.map((c, i) => ({ name: c.name, color: colors[Math.min(i, colors.length - 1)], value: v.rivalShares[i] ?? 0 })).filter((x) => x.value > 0);
+    const rest = Math.max(0, 1 - v.share - rivals.reduce((a, x) => a + x.value, 0));
+    return donutChart('Доля рынка сегодня', [{ name: 'Вы', color: 'var(--c1)', value: v.share }, ...rivals, { name: 'Прошли мимо', color: 'var(--ink-muted)', value: rest }], { value: percent(v.share), label: 'ваша доля' });
+  }
+
   function overviewHtml(): string {
     const st = s();
     const l = last();
@@ -388,7 +397,7 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
         <div class="gs-sec">${lineChart('ov-cash', { title: 'Деньги на счёте, 30 дней', x: data.x, series: [{ name: 'Деньги', color: 'var(--c2)', values: data.cash }], format: short })}
           ${l ? `<div><div class="it-row" style="margin-bottom:6px"><span class="lbl grow">Загрузка${q('load')}</span><span class="num">${percent(load)}</span></div>${bar(load * 100)}</div>` : ''}
           <div class="gs-facts">${facts}</div></div>
-        <div class="gs-sec">${adviceHtml()}${reviewsHtml()}</div>
+        <div class="gs-sec">${shareDonut()}${adviceHtml()}${reviewsHtml()}</div>
       </div></div>`;
   }
 
@@ -487,7 +496,17 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
         <button class="it-btn it-btn--secondary gs-step" data-price="${i.id}" data-delta="${step}" data-k="p-${i.id}-p" aria-label="${i.name}: дороже" ${p >= b.prices.max ? 'disabled' : ''}>+</button></div>`;
     }).join('');
     const diff = v.check / b.demand.marketCheck - 1;
-    return `<div class="gs-prices">${rows}</div><div class="gs-facts">${row('Ожидаемый средний чек', price(v.check))}${row('Район: ' + price(b.demand.marketCheck), `${diff > 0 ? 'выше' : 'ниже'} на ${percent(Math.abs(diff))}`, diff > 0.005 ? 'warn' : 'money')}${row('Ждём клиентов в день', '≈ ' + Math.round(v.expected))}</div>
+    const rivals = st.competitors.filter((c) => !c.opening && st.day > c.closedUntilDay);
+    const cmpCell = (mine: number, theirs: number) => `<td class="${theirs < mine - 0.001 ? 'loss' : theirs > mine + 0.001 ? 'money' : ''}">${price(theirs)}</td>`;
+    const compare = rivals.length
+      ? `<div class="gs-sec"><div class="lbl">Цены у конкурентов</div><div class="gs-pl-wrap"><table class="gs-pl gs-cmp"><thead><tr><th>Позиция</th><th>Вы</th>${rivals.map((c) => `<th>${c.name}</th>`).join('')}</tr></thead><tbody>
+        ${cfg.items.map((i) => `<tr><td>${i.name}</td><td><b>${price(st.prices[i.id])}</b></td>${rivals.map((c) => cmpCell(st.prices[i.id], rivalItemPrice(c, i.id, cfg))).join('')}</tr>`).join('')}
+        <tr class="total"><td>Средний чек</td><td>${price(v.check)}</td>${rivals.map((c) => cmpCell(v.check, c.avgCheck)).join('')}</tr>
+        <tr><td>Качество</td><td>${v.quality.toFixed(2).replace('.', ',')}</td>${rivals.map((c) => `<td>${c.quality.toFixed(2).replace('.', ',')}</td>`).join('')}</tr>
+        <tr><td>Репутация</td><td>${stars(st.reputation)}</td>${rivals.map((c) => `<td>${stars(c.reputation)}</td>`).join('')}</tr></tbody></table></div>
+        <div class="gs-note">Красным – у конкурента дешевле, зелёным – дороже, чем у вас.</div></div>`
+      : '';
+    return `<div class="gs-prices">${rows}</div>${compare}<div class="gs-facts">${row('Ожидаемый средний чек', price(v.check))}${row('Район: ' + price(b.demand.marketCheck), `${diff > 0 ? 'выше' : 'ниже'} на ${percent(Math.abs(diff))}`, diff > 0.005 ? 'warn' : 'money')}${row('Ждём клиентов в день', '≈ ' + Math.round(v.expected))}</div>
       <div class="gs-note">+10% к чеку – примерно −13% клиентов.</div>`;
   }
 
