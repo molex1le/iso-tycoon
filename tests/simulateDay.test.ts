@@ -159,7 +159,7 @@ describe('simulateDay: спрос и продажи', () => {
 describe('расходы и налоги', () => {
   it('в конце месяца списываются аренда, коммуналка и зарплаты со взносами', () => {
     const s = createInitialState(2);
-    advance(s, 29);
+    advance(s, 30);
     const r = simulateDay(s);
     expect(r.expenses.rent).toBe(2400);
     expect(r.expenses.utilities).toBe(300);
@@ -172,8 +172,8 @@ describe('расходы и налоги', () => {
 
   it('ООО платит бухгалтеру каждый месяц', () => {
     const s = createInitialState(2, opts({ form: 'ooo' }));
-    advance(s, 30);
-    expect(s.history[29].expenses.services).toBe(300);
+    advance(s, 31);
+    expect(s.history[30].expenses.services).toBe(300);
   });
 
   it('6% с выручки: начисляется в конце квартала, платится по кнопке', () => {
@@ -238,12 +238,12 @@ describe('расходы и налоги', () => {
     expect(s.outcome).toBe('bankrupt');
   });
 
-  it('год заканчивается после 360-го дня', () => {
+  it('год заканчивается после 365-го дня', () => {
     const s = createInitialState(9, opts({ difficulty: 'training' }));
     applyCommand(s, { type: 'DebugAddMoney', amount: 100000 });
     advance(s, 400);
     expect(s.outcome).toBe('year');
-    expect(s.history).toHaveLength(360);
+    expect(s.history).toHaveLength(365);
     expect(() => simulateDay(s)).toThrow();
   });
 });
@@ -382,7 +382,7 @@ describe('Game: часы + ядро', () => {
 
   it('автопауза: на итогах месяца время стоит, пока игрок не закроет окно', () => {
     const g = new Game(1);
-    expect(g.skipDays(100)).toBe(30);
+    expect(g.skipDays(100)).toBe(31);
     expect(g.blocked).toBe(true);
     expect(g.update(1000)).toBe(0);
     g.dispatch({ type: 'Acknowledge' });

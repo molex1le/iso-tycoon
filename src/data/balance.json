@@ -3,6 +3,9 @@
     "dayLengthSec": 24,
     "daysPerMonth": 30,
     "monthsPerYear": 12,
+    "monthLengths": [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31],
+    "startYear": 2026,
+    "monthNamesGen": ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"],
     "startHour": 6,
     "nightFromHour": 20,
     "nightToHour": 6,
@@ -443,7 +446,6 @@
     "noFridgeShelfLifeDays": 2
   },
   "taxes": {
-    "quarterDays": 90,
     "payAfterDays": 25,
     "regimes": {
       "revenue6": {

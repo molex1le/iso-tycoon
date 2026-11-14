@@ -66,7 +66,7 @@ describe('рост', () => {
     expect(s.finished).toBe(false);
     expect(s.years).toBe(2);
     expect(s.rentFactor).toBeGreaterThan(rent);
-    expect(s.inspections.some((i) => i.visitDay > 360)).toBe(true);
+    expect(s.inspections.some((i) => i.visitDay > 365)).toBe(true);
   });
 });
 

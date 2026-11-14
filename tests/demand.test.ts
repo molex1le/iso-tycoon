@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { monthOf, dayOfMonth, seasonOf } from '../src/core/calendar';
+import { dateLabel, dayOfMonth, isMonthEnd, isQuarterEnd, monthEndOf, monthIndex, monthOf, quarterEndOf, seasonOf, yearDays, yearOf } from '../src/core/calendar';
 import { defaultConfig } from '../src/core/config';
 import { attractiveness, averageCheck, customersPerDay, marketShare } from '../src/core/demand';
 import { nextRandom } from '../src/core/rng';
@@ -43,13 +43,29 @@ describe('формула спроса', () => {
 });
 
 describe('календарь', () => {
-  it('месяц = 30 дней, год = 360', () => {
+  it('настоящий календарь: 365 дней, в феврале 28', () => {
+    expect(yearDays(b)).toBe(365);
     expect(monthOf(1, b)).toBe(1);
-    expect(monthOf(30, b)).toBe(1);
-    expect(monthOf(31, b)).toBe(2);
-    expect(monthOf(360, b)).toBe(12);
-    expect(dayOfMonth(31, b)).toBe(1);
-    expect(dayOfMonth(360, b)).toBe(30);
+    expect(monthOf(31, b)).toBe(1);
+    expect(monthOf(32, b)).toBe(2);
+    expect(dayOfMonth(59, b)).toBe(28);
+    expect(monthOf(60, b)).toBe(3);
+    expect(dayOfMonth(60, b)).toBe(1);
+    expect(monthOf(365, b)).toBe(12);
+    expect(dayOfMonth(365, b)).toBe(31);
+    expect(monthOf(366, b)).toBe(1);
+    expect(yearOf(366, b)).toBe(2);
+    expect(monthIndex(366, b)).toBe(13);
+    expect(dateLabel(59, b)).toBe('28 февраля');
+  });
+
+  it('концы месяцев и кварталов календарные', () => {
+    expect(isMonthEnd(31, b)).toBe(true);
+    expect(isMonthEnd(30, b)).toBe(false);
+    expect(monthEndOf(40, b)).toBe(59);
+    expect([90, 181, 273, 365].every((d) => isQuarterEnd(d, b))).toBe(true);
+    expect(quarterEndOf(91, b)).toBe(181);
+    expect(quarterEndOf(366, b)).toBe(455);
   });
 
   it('сезоны: зима 1,15, весна 1,0, лето 0,8, осень 1,05', () => {

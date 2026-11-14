@@ -1,3 +1,4 @@
+import { dateLabel } from './calendar';
 import type { GameConfig } from './config';
 import { AGENCIES } from './config';
 import { cushionDays, taxOwed } from './finance';
@@ -28,8 +29,8 @@ export function advise(state: GameState, cfg: GameConfig): Advice[] {
   }
 
   const d = state.tax.due;
-  if (d && !d.filed) add(state.day >= d.declareBy - 5 ? 90 : 55, state.day > d.declareBy ? 'bad' : 'warn', state.day > d.declareBy ? 'Декларация просрочена' : `Подайте декларацию до ${d.declareBy}-го дня`, 'Иначе штраф и пени. Вкладка «Банк».', 'bank');
-  else if (d && d.filed) add(state.day >= d.payBy - 5 ? 90 : 55, state.day > d.payBy ? 'bad' : 'warn', `Оплатите налог до ${d.payBy}-го дня`, `К оплате ${Math.round(taxOwed(state))} $. После срока – пеня 0,1% в день.`, 'bank');
+  if (d && !d.filed) add(state.day >= d.declareBy - 5 ? 90 : 55, state.day > d.declareBy ? 'bad' : 'warn', state.day > d.declareBy ? 'Декларация просрочена' : `Подайте декларацию до ${dateLabel(d.declareBy, b)}`, 'Иначе штраф и пени. Вкладка «Банк».', 'bank');
+  else if (d && d.filed) add(state.day >= d.payBy - 5 ? 90 : 55, state.day > d.payBy ? 'bad' : 'warn', `Оплатите налог до ${dateLabel(d.payBy, b)}`, `К оплате ${Math.round(taxOwed(state))} $. После срока – пеня 0,1% в день.`, 'bank');
 
   const cushion = cushionDays(state, cfg);
   if (cushion < 21) add(85, 'bad', `Денег на ${cushion} дн.`, 'Поднимите выручку, сократите расходы или посмотрите кредиты.', 'bank');

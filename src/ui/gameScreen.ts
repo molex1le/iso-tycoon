@@ -1,7 +1,7 @@
-import { dayOfMonth, monthOf, seasonOf } from '../core/calendar';
+import { calendarYear, dateLabel, monthIndex, monthOf, seasonOf } from '../core/calendar';
 import type { Speed } from '../core/clock';
 import { announcedInspection, type Command } from '../core/commands';
-import { AGENCIES, gameLength, itemCost, totalDays, type AccountingId, type AgencyId, type EquipmentId, type LoanProductId, type LocationId, type SupplierId } from '../core/config';
+import { AGENCIES, gameLength, itemCost, type AccountingId, type AgencyId, type EquipmentId, type LoanProductId, type LocationId, type SupplierId } from '../core/config';
 import { eventById, fillVars, optionCost } from '../core/events';
 import { accountantMonthly, accountBlocked, computeScore, cushionDays, dailyFixed, payrollMonthly, taxOwed, upcoming } from '../core/finance';
 import { loanOffer, loansDebt } from '../core/loans';
@@ -184,7 +184,7 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
       <div class="it-stat">${PERSON}<div><div class="lbl">Персонал</div><div class="v">${st.employees.length}</div></div></div>
       <div class="it-stat gs-opt" data-tip="${next ? next.title : ''}"><div><div class="lbl">Ближайший срок</div><div class="v ${next && next.day - st.day <= 3 ? 'warn' : ''}">${next ? (next.day <= st.day ? 'сегодня' : 'через ' + (next.day - st.day) + ' дн.') : '–'}</div></div></div>
       <div class="spacer"></div>
-      <div class="it-date"><div class="lbl">${seasonOf(month, b).name} · день ${day} из ${gameLength(st, b)}</div><div style="font-weight:600" data-tip="${weatherTip()}">${dayOfMonth(day, b)} · ${monthName(month)} · ${b.weather.kinds[weatherOf(st)].name.toLowerCase()} · <span class="num" data-ref="time"></span></div></div>
+      <div class="it-date"><div class="lbl">${seasonOf(month, b).name} · день ${day} из ${gameLength(st, b)}</div><div style="font-weight:600" data-tip="${weatherTip()}">${dateLabel(day, b)} ${calendarYear(day, b)} · ${b.weather.kinds[weatherOf(st)].name.toLowerCase()} · <span class="num" data-ref="time"></span></div></div>
       <div class="it-speed" role="group" aria-label="Скорость">${btn(0, '❚❚', 'Пауза')}${btn(1, '1×')}${btn(2, '2×')}${btn(3, '3×')}</div>
       ${devMode ? `<button class="it-btn it-btn--secondary gs-dev-btn ${debugOpen ? 'on' : ''}" data-dbg-toggle data-k="dev" aria-pressed="${debugOpen}">DEV</button>` : ''}
       <button class="it-btn it-btn--secondary it-btn--icon" data-menu data-k="menu" aria-label="Меню">☰</button>`);
@@ -422,7 +422,7 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
   function financeHtml(): string {
     const st = s();
     const d = series(chartRange);
-    const ranges = ([[30, '30 дней'], [90, '90 дней'], [360, 'Год']] as const).map(([v, n]) => `<button class="${chartRange === v ? 'on' : ''}" data-range="${v}" data-k="r${v}">${n}</button>`).join('');
+    const ranges = ([[30, '30 дней'], [90, '90 дней'], [365, 'Год']] as const).map(([v, n]) => `<button class="${chartRange === v ? 'on' : ''}" data-range="${v}" data-k="r${v}">${n}</button>`).join('');
     const names = st.competitors.map((c) => c.name);
     const charts = [
       lineChart('f-cash', { title: 'Деньги на счёте', x: d.x, series: [{ name: 'Деньги', color: 'var(--c2)', values: d.cash }], format: short }),
@@ -437,7 +437,7 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
   function plTable(): string {
     const st = s();
     if (!st.history.length) return '<div class="gs-note">Первая строка появится после первого дня.</div>';
-    const idx = (r: DayRecord) => Math.ceil(r.day / b.time.daysPerMonth);
+    const idx = (r: DayRecord) => monthIndex(r.day, b);
     const months = [...new Set(st.history.map(idx))];
     const byMonth = months.map((m) => {
       const days = st.history.filter((r) => idx(r) === m);
@@ -632,9 +632,9 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
 
   function datesHtml(): string {
     const st = s();
-    const lastDay = totalDays(b);
+    const lastDay = gameLength(st, b);
     return upcoming(st, cfg).map((u) => `<div class="gs-card"><div class="it-row"><b class="grow">${u.title}</b>${u.amount !== null ? `<span class="num">${money(u.amount)}</span>` : ''}</div>
-      <div class="gs-note">день ${u.day}${u.day <= lastDay ? ` · ${dayOfMonth(u.day, b)} ${monthName(monthOf(u.day, b)).toLowerCase()}` : ' · уже после конца года'} · ${u.day === st.day ? 'сегодня' : 'через ' + (u.day - st.day) + ' дн.'}</div></div>`).join('');
+      <div class="gs-note">${u.day <= lastDay ? dateLabel(u.day, b) : 'уже после конца года'} · ${u.day === st.day ? 'сегодня' : 'через ' + (u.day - st.day) + ' дн.'}</div></div>`).join('');
   }
 
   // ---------- меню и отладка ----------

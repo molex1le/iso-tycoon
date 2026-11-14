@@ -333,7 +333,7 @@ describe('события', () => {
     applyCommand(s, { type: 'DebugAddMoney', amount: 500000 }, allEvents);
     const days: number[] = [];
     const seen: Record<string, number> = {};
-    for (let i = 0; i < 360 && !s.finished; i++) {
+    for (let i = 0; i < 365 && !s.finished; i++) {
       while (s.pending.length && !s.finished) {
         const p = s.pending[0];
         if (p.kind === 'event') {

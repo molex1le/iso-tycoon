@@ -37,7 +37,7 @@
   },
   "taxDue": {
     "title": "Налог за квартал: {amount}",
-    "text": "Декларация до дня {declare}, оплата до дня {pay}"
+    "text": "Декларация до {declare}, оплата до {pay}"
   },
   "taxPaid": {
     "title": "Уплачен налог: {amount}",

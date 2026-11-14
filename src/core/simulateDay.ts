@@ -1,4 +1,4 @@
-import { dayOfMonth, monthOf, seasonOf } from './calendar';
+import { isMonthEnd, monthOf, seasonOf } from './calendar';
 import { competitorsTurn } from './competitors';
 import { branchDay } from './branch';
 import { clamp, defaultConfig, gameLength, round2, type GameConfig } from './config';
@@ -190,7 +190,7 @@ export function simulateDay(state: GameState, cfg: GameConfig = defaultConfig): 
   const growth = b.awareness.dailyGrowth + (day <= state.flyersUntilDay ? m.flyers.awarenessPerDay : 0) + (state.social ? m.social.awarenessPerDay : 0);
   state.awareness = Math.min(b.awareness.max, round2(state.awareness + growth));
 
-  const monthEnd = dayOfMonth(day, b) === b.time.daysPerMonth;
+  const monthEnd = isMonthEnd(day, b);
   if (monthEnd) payMonthEnd(state, cfg);
   processTaxes(state, cfg, random);
   processLoans(state, cfg);

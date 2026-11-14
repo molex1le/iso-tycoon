@@ -1,5 +1,5 @@
 import { monthOf } from './calendar';
-import { clamp, round2, type EventDef, type EventFx, type EventOption, type GameConfig } from './config';
+import { clamp, round2, totalDays, type EventDef, type EventFx, type EventOption, type GameConfig } from './config';
 import { say } from './feed';
 import { spend } from './finance';
 import { triggerUnplanned } from './inspections';
@@ -48,7 +48,7 @@ function conditionOk(state: GameState, cfg: GameConfig, e: EventDef): boolean {
   if (w.trigger) return false;
   if (w.once && last !== undefined) return false;
   if (w.cooldown !== undefined && last !== undefined && state.day - last < w.cooldown) return false;
-  if (w.minMonth !== undefined && monthOf(Math.min(state.day, 360), b) < w.minMonth) return false;
+  if (w.minMonth !== undefined && state.day <= totalDays(b) && monthOf(state.day, b) < w.minMonth) return false;
   if (w.form !== undefined && state.options.form !== w.form) return false;
   if (w.hasMachine && (machineOrdersPerHour(state, cfg) === 0 || state.day <= state.machineDownUntilDay)) return false;
   if (w.cleanBelow !== undefined && state.cleanliness >= w.cleanBelow) return false;

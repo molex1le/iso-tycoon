@@ -239,7 +239,7 @@ export interface GameState {
   version: 3;
   seed: number;
   rngState: number;
-  /** текущий (ещё не посчитанный) день, 1..360 */
+  /** текущий (ещё не посчитанный) день, 1..365 */
   day: number;
   finished: boolean;
   outcome: Outcome | null;

@@ -187,7 +187,7 @@ export const defaultConfig: GameConfig = {
 };
 
 export function totalDays(b: Balance): number {
-  return b.time.daysPerMonth * b.time.monthsPerYear;
+  return b.time.monthLengths.reduce((a, n) => a + n, 0);
 }
 
 /** Последний день партии: год, или больше, если игрок решил продолжить. */

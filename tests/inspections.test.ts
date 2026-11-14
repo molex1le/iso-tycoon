@@ -239,10 +239,10 @@ describe('финансовые сводки', () => {
 
   it('календарь показывает платежи месяца, налог и плановую проверку', () => {
     const list = upcoming(createInitialState(1), cfg);
-    expect(list[0]).toMatchObject({ day: 30, kind: 'month' });
+    expect(list[0]).toMatchObject({ day: 31, kind: 'month' });
     expect(list.some((u) => u.kind === 'inspection' && u.day === 75)).toBe(true);
     expect(list.some((u) => u.kind === 'tax' && u.day === 115)).toBe(true);
-    expect(list.at(-1)).toMatchObject({ kind: 'yearEnd', day: 360 });
+    expect(list.at(-1)).toMatchObject({ kind: 'yearEnd', day: 365 });
   });
 
   it('очки = деньги + половина оборудования + депозит − налоговый долг − стартовый капитал', () => {

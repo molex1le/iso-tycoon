@@ -1,4 +1,4 @@
-import { dayOfMonth } from './calendar';
+import { dateLabel, isQuarterEnd, monthEndOf, quarterEndOf } from './calendar';
 import { round2, gameLength, type GameConfig } from './config';
 import { say, usd } from './feed';
 import { loansDebt, monthlyLoanPayments } from './loans';
@@ -139,7 +139,7 @@ export function processTaxes(state: GameState, cfg: GameConfig, random: () => nu
       if (taxOverdueDays(state) === t.blockAfterDays + 1) say(state, cfg, 'accountBlocked', 'bad');
     }
   }
-  if (state.day % t.quarterDays === 0) {
+  if (isQuarterEnd(state.day, cfg.balance)) {
     const amount = quarterTax(state, cfg);
     state.tax.quarterRevenue = 0;
     state.tax.quarterDeductible = 0;
@@ -153,7 +153,7 @@ export function processTaxes(state: GameState, cfg: GameConfig, random: () => nu
       } else {
         state.tax.due = { amount, declareBy: state.day + t.declareAfterDays, payBy: state.day + t.payAfterDays, filed: false, penalty: 0, undeclaredFines: 0 };
       }
-      say(state, cfg, 'taxDue', 'warn', { amount: usd(amount), declare: state.day + t.declareAfterDays, pay: state.day + t.payAfterDays });
+      say(state, cfg, 'taxDue', 'warn', { amount: usd(amount), declare: dateLabel(state.day + t.declareAfterDays, cfg.balance), pay: dateLabel(state.day + t.payAfterDays, cfg.balance) });
     }
   }
 }
@@ -189,14 +189,14 @@ export function upcoming(state: GameState, cfg: GameConfig): Upcoming[] {
   const out: Upcoming[] = [];
   const last = gameLength(state, b);
   const today = Math.min(state.day, last);
-  const monthEnd = today + (b.time.daysPerMonth - dayOfMonth(today, b));
+  const monthEnd = monthEndOf(today, b);
   out.push({ day: monthEnd, kind: 'month', title: 'Аренда, зарплаты, коммуналка', amount: monthlyFixed(state, cfg) + state.overtimeAccrued * (1 + b.staff.contributions) });
   const d = state.tax.due;
   if (d) {
     if (!d.filed) out.push({ day: d.declareBy, kind: 'declare', title: 'Подать декларацию', amount: null });
     out.push({ day: d.payBy, kind: 'tax', title: 'Оплатить налог за квартал', amount: taxOwed(state) });
   }
-  const quarterEnd = Math.ceil(today / b.taxes.quarterDays) * b.taxes.quarterDays;
+  const quarterEnd = quarterEndOf(today, b);
   out.push({ day: quarterEnd + b.taxes.payAfterDays, kind: 'tax', title: 'Налог за текущий квартал (оценка на сегодня)', amount: quarterTax(state, cfg) });
   for (const l of state.loans) out.push({ day: l.nextPayDay, kind: 'loan', title: `Платёж по кредиту «${b.loans.products[l.product].name}»`, amount: l.payment });
   for (const i of state.inspections) {
