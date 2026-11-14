@@ -5,7 +5,7 @@ import { spend } from './finance';
 import { triggerUnplanned } from './inspections';
 import { expectedDailyUsage } from './inventory';
 import { nextRandom } from './rng';
-import { baristas, demandView, machineOrdersPerHour } from './shop';
+import { baristas, demandView, machineOrdersPerHour, syncShifts } from './shop';
 import { loyaltyOf, traitOf } from './staff';
 import type { Employee, GameState, Pending } from './state';
 import { fillText } from './text';
@@ -149,7 +149,10 @@ function applyFx(state: GameState, cfg: GameConfig, fx: EventFx, target: Employe
       say(state, cfg, 'joinedRival', 'warn', { name: target.name, rival: rival.name });
     }
     if (fx.officializeTarget) target.official = true;
-    if (fx.leaveTarget) state.employees = state.employees.filter((e) => e.id !== target.id);
+    if (fx.leaveTarget) {
+      state.employees = state.employees.filter((e) => e.id !== target.id);
+      syncShifts(state);
+    }
   }
 }
 

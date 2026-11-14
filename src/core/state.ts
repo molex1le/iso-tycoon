@@ -1,4 +1,5 @@
 import type { Branch } from './branch';
+import { syncShifts } from './shop';
 import type { Command } from './commands';
 import {
   AGENCIES,
@@ -50,6 +51,10 @@ export interface Employee {
   loyaltyBonus: number;
   /** день, к которому обещан разговор о зарплате */
   promiseDay?: number;
+  /** график бариста: смены по дням недели, с понедельника */
+  shifts?: boolean[];
+  /** смен отработано с начала месяца – за них платим в конце месяца */
+  shiftsWorked?: number;
 }
 
 export interface Candidate {
@@ -263,6 +268,8 @@ export interface GameState {
   nextId: number;
   /** начисленные, но ещё не выплаченные сверхурочные */
   overtimeAccrued: number;
+  /** график смен расставляется сам; выключается, когда игрок правит его руками */
+  autoShifts?: boolean;
   inventory: Record<string, Batch[]>;
   cleanliness: number;
   /** скрытый дефект помещения */
@@ -423,6 +430,7 @@ export function createInitialState(seed: number, options?: NewGameOptions, cfg: 
     candidates: [],
     nextId: b.staff.start.length + 1,
     overtimeAccrued: 0,
+    autoShifts: true,
     inventory: {},
     cleanliness: b.compliance.cleanStart,
     defect: defect !== null && opts.repair !== 'full',
@@ -499,6 +507,7 @@ export function createInitialState(seed: number, options?: NewGameOptions, cfg: 
     });
   }
   refreshCandidates(state, cfg);
+  syncShifts(state);
   return state;
 }
 

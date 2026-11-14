@@ -5,6 +5,8 @@ import { clamp, defaultConfig, round2, type AccountingId, type AgencyId, type Eq
 import { chooseOption } from './events';
 import { say, usd } from './feed';
 import { roleName } from './text';
+import { syncShifts } from './shop';
+import { earnedSoFar } from './staff';
 import { fileDeclaration, payTax, spend } from './finance';
 import { answerInspector, checklist, itemScore, resolveVisit, triggerUnplanned, type Reply } from './inspections';
 import { repayLoan, restructure, takeLoan } from './loans';
@@ -21,6 +23,9 @@ export type Command =
   | { type: 'Officialize'; employeeId: number }
   | { type: 'SetPosts'; posts: number }
   | { type: 'PostVacancy' }
+  | { type: 'SetSalary'; employeeId: number; salary: number }
+  | { type: 'SetShift'; employeeId: number; weekday: number; on: boolean }
+  | { type: 'AutoShifts' }
   | { type: 'IssueMedBook'; employeeId: number }
   | { type: 'SetSupplier'; supplier: SupplierId }
   | { type: 'SetSafety'; factor: number }
@@ -81,6 +86,7 @@ function run(state: GameState, command: Command, cfg: GameConfig): boolean {
       if (c.role === 'cleaner' && state.employees.filter((e) => e.role === 'cleaner').length >= b.staff.maxCleaners) return false;
       state.candidates = state.candidates.filter((x) => x.id !== c.id);
       state.employees.push({ ...c, medBookReadyDay: null, fatigue: 0, hiredDay: state.day, official: command.official !== false, loyaltyBonus: 0 });
+      syncShifts(state);
       say(state, cfg, 'hired', 'ok', { name: c.name, role: roleName(c.role, c.name), amount: usd(c.salary) });
       return true;
     }
@@ -89,6 +95,9 @@ function run(state: GameState, command: Command, cfg: GameConfig): boolean {
       if (!e) return false;
       const severance = command.severance !== false;
       state.employees = state.employees.filter((x) => x.id !== e.id);
+      syncShifts(state);
+      // отработанные в этом месяце смены оплачиваются при расчёте
+      if (e.role === 'barista') spend(state, 'payroll', earnedSoFar(e, cfg) * (e.official ? 1 + b.staff.contributions : 1));
       if (severance) spend(state, 'payroll', e.salary * b.costs.severanceSalaries);
       else if (nextRandom(state) < (e.official ? b.staff.complaintNoSeverance : b.staff.complaintEnvelope)) {
         say(state, cfg, 'complaint', 'bad', { name: e.name });
@@ -112,9 +121,37 @@ function run(state: GameState, command: Command, cfg: GameConfig): boolean {
       say(state, cfg, 'vacancy', 'info', { amount: usd(b.staff.vacancyCost), n: state.candidates.length });
       return true;
     }
+    case 'SetSalary': {
+      const e = state.employees.find((x) => x.id === command.employeeId);
+      const st = b.staff;
+      if (!e || !Number.isFinite(command.salary)) return false;
+      const salary = clamp(Math.round(command.salary / st.salaryStep) * st.salaryStep, st.salaryMin, st.salaryMax);
+      if (salary === e.salary) return false;
+      // снижение зарплаты люди запоминают, прибавка работает через лояльность сама
+      if (salary < e.salary) e.loyaltyBonus += st.salaryCutLoyalty * Math.ceil((e.salary - salary) / st.salaryStep);
+      say(state, cfg, salary > e.salary ? 'salaryUp' : 'salaryDown', salary > e.salary ? 'ok' : 'warn', { name: e.name, amount: usd(salary) }, 0);
+      if (salary > e.salary) delete e.promiseDay;
+      e.salary = salary;
+      return true;
+    }
+    case 'SetShift': {
+      const e = state.employees.find((x) => x.id === command.employeeId);
+      if (!e || e.role !== 'barista' || !Number.isInteger(command.weekday) || command.weekday < 0 || command.weekday > 6) return false;
+      syncShifts(state);
+      if (!!e.shifts![command.weekday] === command.on) return false;
+      state.autoShifts = false;
+      e.shifts![command.weekday] = command.on;
+      return true;
+    }
+    case 'AutoShifts': {
+      state.autoShifts = true;
+      syncShifts(state);
+      return true;
+    }
     case 'SetPosts': {
       if (!Number.isInteger(command.posts) || command.posts < 1 || command.posts > b.staff.maxPosts || command.posts === state.posts) return false;
       state.posts = command.posts;
+      syncShifts(state);
       return true;
     }
     case 'IssueMedBook': {

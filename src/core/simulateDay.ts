@@ -10,7 +10,7 @@ import { decayCleanliness, morningInspections, rollUnplanned } from './inspectio
 import { consume, lowStock, receiveDeliveries, stockQty, writeOffExpired } from './inventory';
 import { processLoans, rescueAvailable } from './loans';
 import { nextRandom } from './rng';
-import { closedReason, demandView, periodCapacity } from './shop';
+import { closedReason, demandView, periodCapacity, syncShifts } from './shop';
 import { finishMedBooks, updateStaffDay } from './staff';
 import { refreshCandidates, type DayRecord, type GameState } from './state';
 
@@ -71,10 +71,12 @@ export function simulateDay(state: GameState, cfg: GameConfig = defaultConfig): 
   state.flowMods = state.flowMods.filter((m) => m.untilDay >= day);
   state.costMods = state.costMods.filter((m) => m.untilDay >= day);
 
+  syncShifts(state);
   const reason = closedReason(state, cfg, day);
   const open = reason === null;
   if (day <= state.suspendedUntilDay) state.suspensionDaysTotal++;
   else if (reason === 'нет бариста') say(state, cfg, 'noBarista', 'bad', {}, 3);
+  else if (reason === 'никого на смене') say(state, cfg, 'noShift', 'bad', {}, 3);
   if (day > state.suspendedUntilDay && state.suspendedUntilDay === day - 1 && day > 1) say(state, cfg, 'reopened', 'ok');
 
   // ---------- спрос ----------
@@ -83,7 +85,7 @@ export function simulateDay(state: GameState, cfg: GameConfig = defaultConfig): 
   const demand = open ? Math.max(0, Math.round(view.expected * noise)) : 0;
 
   // ---------- мощность по периодам: утро / день / вечер ----------
-  const perPeriod = open ? periodCapacity(state, cfg) : 0;
+  const perPeriod = open ? periodCapacity(state, cfg, day) : 0;
   const byPeriod = splitByPeriods(demand, b.periods.map((p) => p.share));
   let seated = 0;
   for (const d of byPeriod) seated += Math.min(d, perPeriod);

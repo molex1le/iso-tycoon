@@ -2,7 +2,8 @@ import { dateLabel, isQuarterEnd, monthEndOf, quarterEndOf } from './calendar';
 import { round2, gameLength, type GameConfig } from './config';
 import { say, usd } from './feed';
 import { loansDebt, monthlyLoanPayments } from './loans';
-import { demandView } from './shop';
+import { demandView, shiftsPerWeek } from './shop';
+import { earnedSoFar } from './staff';
 import type { ExpenseCategory, GameState } from './state';
 
 /** Списывает деньги и записывает расход в статьи дня. documented – доля, подтверждённая документами. */
@@ -17,9 +18,22 @@ export function spend(state: GameState, category: ExpenseCategory, amount: numbe
 }
 
 /** Зарплаты за месяц: взносы только за официальных. */
+/** Зарплаты за обычный месяц при текущем графике: бариста – за смены, уборщица – оклад. Со взносами. */
 export function payrollMonthly(state: GameState, cfg: GameConfig): number {
+  const s = cfg.balance.staff;
+  const perMonth = cfg.balance.time.daysPerMonth / 7;
+  return round2(
+    state.employees.reduce((a, e) => {
+      const base = e.role === 'barista' ? (e.salary * shiftsPerWeek(e) * perMonth) / s.shiftsPerMonthNorm : e.salary;
+      return a + base * (e.official ? 1 + s.contributions : 1);
+    }, 0),
+  );
+}
+
+/** Сколько начислено за смены с начала месяца, со взносами – это спишется в конце месяца. */
+export function payrollAccrued(state: GameState, cfg: GameConfig): number {
   const c = cfg.balance.staff.contributions;
-  return round2(state.employees.reduce((a, e) => a + e.salary * (e.official ? 1 + c : 1), 0));
+  return round2(state.employees.reduce((a, e) => a + earnedSoFar(e, cfg) * (e.official ? 1 + c : 1), 0));
 }
 
 export function accountantMonthly(state: GameState, cfg: GameConfig): number {
@@ -51,7 +65,8 @@ export function payMonthEnd(state: GameState, cfg: GameConfig): number {
   const m = cfg.balance.marketing;
   spend(state, 'rent', rentMonthly(state, cfg));
   spend(state, 'utilities', cfg.balance.costs.utilities);
-  spend(state, 'payroll', payrollMonthly(state, cfg) + state.overtimeAccrued * (1 + cfg.balance.staff.contributions));
+  spend(state, 'payroll', payrollAccrued(state, cfg) + state.overtimeAccrued * (1 + cfg.balance.staff.contributions));
+  for (const e of state.employees) e.shiftsWorked = 0;
   spend(state, 'services', accountantMonthly(state, cfg) + (state.serviceContract ? m.serviceContract.monthly : 0));
   spend(state, 'marketing', state.social ? m.social.monthly : 0);
   state.overtimeAccrued = 0;

@@ -2,7 +2,7 @@ import { weatherFactor } from './weather';
 import { monthOf, seasonOf } from './calendar';
 import { clamp, type GameConfig } from './config';
 import { attractiveness, averageCheck, customersPerDay, marketShare } from './demand';
-import type { GameState } from './state';
+import type { Employee, GameState } from './state';
 
 export function baristas(state: GameState) {
   return state.employees.filter((e) => e.role === 'barista');
@@ -20,9 +20,55 @@ export function machineOrdersPerHour(state: GameState, cfg: GameConfig): number 
   return Math.max(0, ...state.equipment.map((id) => cfg.balance.equipment[id].ordersPerHour));
 }
 
-/** Бариста, реально стоящих за стойкой одновременно. */
-export function staffedPosts(state: GameState): number {
-  return Math.min(state.posts, baristas(state).length);
+/** День недели: 0 – понедельник. Партия начинается в четверг, 1 января 2026. */
+export function weekdayOf(day: number): number {
+  return (day - 1 + 3) % 7;
+}
+
+/** Работает ли бариста в этот день недели; у старых сохранений графика нет – работает всегда. */
+export function worksOn(e: Employee, weekday: number): boolean {
+  return e.shifts ? !!e.shifts[weekday] : true;
+}
+
+/** Бариста, у которых сегодня смена. */
+export function onShift(state: GameState, day = state.day): Employee[] {
+  const w = weekdayOf(day);
+  return baristas(state).filter((e) => worksOn(e, w));
+}
+
+export function shiftsPerWeek(e: Employee): number {
+  return e.shifts ? e.shifts.filter(Boolean).length : 7;
+}
+
+/**
+ * Расставляет смены поровну: на каждый день недели – столько бариста, сколько постов.
+ * Вызывается, пока игрок не начал править график сам.
+ */
+export function autoAssignShifts(state: GameState): void {
+  const team = baristas(state);
+  for (const e of team) e.shifts = [false, false, false, false, false, false, false];
+  if (team.length === 0) return;
+  const perDay = Math.min(state.posts, team.length);
+  let p = 0;
+  for (let w = 0; w < 7; w++) for (let k = 0; k < perDay; k++) team[p++ % team.length].shifts![w] = true;
+}
+
+/** Держит график в порядке после найма, увольнения и смены числа постов. */
+export function syncShifts(state: GameState): void {
+  if (state.autoShifts !== false) {
+    autoAssignShifts(state);
+    return;
+  }
+  // ручной график: новичку даём дни, где людей не хватает
+  for (const e of baristas(state)) {
+    if (e.shifts) continue;
+    e.shifts = [0, 1, 2, 3, 4, 5, 6].map((w) => baristas(state).filter((x) => x !== e && x.shifts?.[w]).length < state.posts);
+  }
+}
+
+/** Бариста, реально стоящих за стойкой одновременно в этот день. */
+export function staffedPosts(state: GameState, day = state.day): number {
+  return Math.min(state.posts, onShift(state, day).length);
 }
 
 /** Опытная команда работает быстрее: +5% за каждую звезду среднего опыта выше трёх. */
@@ -34,9 +80,9 @@ export function speedFactor(state: GameState, cfg: GameConfig): number {
 }
 
 /** Мощность за один период дня: минимум из бариста на смене и кофемашины. */
-export function periodCapacity(state: GameState, cfg: GameConfig): number {
+export function periodCapacity(state: GameState, cfg: GameConfig, day = state.day): number {
   const c = cfg.balance.capacity;
-  return Math.min(staffedPosts(state) * c.ordersPerBaristaHour * speedFactor(state, cfg), machineOrdersPerHour(state, cfg)) * c.hoursPerPeriod;
+  return Math.min(staffedPosts(state, day) * c.ordersPerBaristaHour * speedFactor(state, cfg), machineOrdersPerHour(state, cfg)) * c.hoursPerPeriod;
 }
 
 /** Почему кофейня не работает сегодня; null – работает. */
@@ -46,15 +92,19 @@ export function closedReason(state: GameState, cfg: GameConfig, day = state.day)
   if (day <= state.machineDownUntilDay) return 'кофемашина в ремонте';
   if (machineOrdersPerHour(state, cfg) === 0) return 'нет кофемашины';
   if (baristas(state).length === 0) return 'нет бариста';
+  if (onShift(state, day).length === 0) return 'никого на смене';
   return null;
 }
 
 /** Часов в неделю на одного бариста при текущем графике. */
 export function hoursPerWeek(state: GameState, cfg: GameConfig): number {
-  const n = baristas(state).length;
-  if (n === 0) return 0;
+  return Math.max(0, ...baristas(state).map((e) => hoursOf(e, cfg)));
+}
+
+/** Часов в неделю у одного бариста по его графику. */
+export function hoursOf(e: Employee, cfg: GameConfig): number {
   const t = cfg.balance.time;
-  return (staffedPosts(state) * (t.closeHour - t.openHour) * 7) / n;
+  return shiftsPerWeek(e) * (t.closeHour - t.openHour);
 }
 
 /**

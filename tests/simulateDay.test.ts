@@ -163,7 +163,8 @@ describe('расходы и налоги', () => {
     const r = simulateDay(s);
     expect(r.expenses.rent).toBe(2400);
     expect(r.expenses.utilities).toBe(300);
-    expect(r.expenses.payroll).toBeCloseTo((800 + 850) * 1.34, 2);
+    // январь: 17 смен у первой бариста и 14 у второго, ставка – зарплата / 15 смен
+    expect(r.expenses.payroll).toBeCloseTo(((800 * 17 + 850 * 14) / 15) * 1.34, 2);
     expect(s.pending[0]).toEqual({ kind: 'monthReport', month: 1 });
     expect(() => simulateDay(s)).toThrow();
     expect(applyCommand(s, { type: 'Acknowledge' })).toBe(true);
@@ -306,7 +307,7 @@ describe('персонал', () => {
     const s = createInitialState(1);
     s.employees = s.employees.slice(0, 1);
     simulateDay(s);
-    expect(s.employees[0].fatigue).toBeCloseTo((84 - 42) * 0.4);
+    expect(s.employees[0].fatigue).toBeCloseTo((84 - 48) * 0.4);
     expect(s.overtimeAccrued).toBeGreaterThan(0);
     advance(s, 60);
     expect(s.feed.some((f) => f.key === 'quit')).toBe(true);

@@ -374,7 +374,12 @@
   },
   "staff": {
     "contributions": 0.34,
-    "weeklyNormHours": 42,
+    "weeklyNormHours": 48,
+    "shiftsPerMonthNorm": 15,
+    "salaryStep": 50,
+    "salaryMin": 300,
+    "salaryMax": 3000,
+    "salaryCutLoyalty": -8,
     "overtimeMultiplier": 2,
     "maxPosts": 3,
     "maxStaff": 10,

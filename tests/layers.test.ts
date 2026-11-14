@@ -399,3 +399,48 @@ describe('найм', () => {
     expect(applyCommand(s, { type: 'Hire', candidateId: extra.id })).toBe(false);
   });
 });
+
+describe('смены и зарплаты', () => {
+  it('автографик: на каждый день недели ровно столько бариста, сколько постов', async () => {
+    const { onShift, shiftsPerWeek } = await import('../src/core/shop');
+    const s = createInitialState(6);
+    for (let day = 1; day <= 7; day++) expect(onShift(s, day)).toHaveLength(1);
+    expect(s.employees.map(shiftsPerWeek).sort()).toEqual([3, 4]);
+  });
+
+  it('ручной график: сняли всех с дня – кофейня в этот день закрыта, смена не оплачивается', async () => {
+    const { closedReason, weekdayOf } = await import('../src/core/shop');
+    const s = createInitialState(6);
+    const w = weekdayOf(1);
+    for (const e of s.employees) applyCommand(s, { type: 'SetShift', employeeId: e.id, weekday: w, on: false });
+    expect(s.autoShifts).toBe(false);
+    expect(closedReason(s, base, 1)).toBe('никого на смене');
+    const r = simulateDay(s);
+    expect(r.open).toBe(false);
+    expect(s.employees.every((e) => (e.shiftsWorked ?? 0) === 0)).toBe(true);
+    expect(applyCommand(s, { type: 'AutoShifts' })).toBe(true);
+    expect(closedReason(s, base, 8)).toBeNull();
+  });
+
+  it('зарплата: шаг $50, прибавка поднимает лояльность, снижение бьёт сильнее', () => {
+    const s = createInitialState(6);
+    const e = s.employees[0];
+    const before = loyaltyOf(e, base);
+    expect(applyCommand(s, { type: 'SetSalary', employeeId: e.id, salary: e.salary + 100 })).toBe(true);
+    const up = loyaltyOf(e, base);
+    expect(up).toBeGreaterThan(before);
+    applyCommand(s, { type: 'SetSalary', employeeId: e.id, salary: e.salary - 100 });
+    expect(loyaltyOf(e, base)).toBeLessThan(before);
+  });
+
+  it('увольнение посреди месяца: отработанные смены оплачены', () => {
+    const s = createInitialState(6);
+    for (let i = 0; i < 10; i++) simulateDay(s);
+    const e = s.employees[0];
+    const worked = e.shiftsWorked ?? 0;
+    expect(worked).toBeGreaterThan(0);
+    const cash = s.cash;
+    applyCommand(s, { type: 'Fire', employeeId: e.id, severance: false });
+    expect(cash - s.cash).toBeCloseTo(((e.salary * worked) / 15) * 1.34, 1);
+  });
+});
