@@ -58,12 +58,16 @@ export function receiveDeliveries(state: GameState, cfg: GameConfig): void {
   if (failed.includes('Молоко')) fireTriggered(state, cfg, 'milk');
 }
 
-/** Сырьё, которого при текущем спросе не хватит до следующей поставки. */
-export function lowStock(state: GameState, cfg: GameConfig): { id: string; name: string; days: number }[] {
+/**
+ * Сырьё, которого при текущем спросе не хватит до следующей поставки.
+ * delivered – сегодняшняя поставка уже принята (иначе её ждём утром и не тревожим игрока).
+ */
+export function lowStock(state: GameState, cfg: GameConfig, delivered = false): { id: string; name: string; days: number }[] {
   const usage = expectedDailyUsage(state, cfg);
   const out: { id: string; name: string; days: number }[] = [];
   for (const m of cfg.materials) {
     if (!(usage[m.id] > 0)) continue;
+    if (!delivered && state.day > 1 && (state.day - 1) % m.deliveryEveryDays === 0) continue;
     const days = stockQty(state, m.id) / usage[m.id];
     const untilDelivery = m.deliveryEveryDays - ((state.day - 1) % m.deliveryEveryDays);
     if (days < untilDelivery * 0.9) out.push({ id: m.id, name: m.name, days });

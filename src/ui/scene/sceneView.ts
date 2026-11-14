@@ -37,6 +37,10 @@ interface Car {
   pos: number;
   dir: 1 | -1;
   speed: number;
+  /** текущая скорость: плавный разгон и торможение */
+  cur: number;
+  /** сколько секунд стоит – чтобы не застрять навсегда */
+  wait: number;
   anchor: Element | null | undefined;
 }
 
@@ -47,6 +51,10 @@ interface Walker {
   t: number;
   speed: number;
   phase: number;
+  /** где сейчас, в клетках карты */
+  at?: Pt;
+  /** секунд ждёт у перехода */
+  wait: number;
   enter: string | null;
   anchor: Element | null | undefined;
 }
@@ -87,8 +95,17 @@ export type Weather = 'clear' | 'rain' | 'snow';
 
 const FAR = [-14, 47];
 const EDGES: Pt[] = WALKS.flatMap((w): Pt[] => FAR.flatMap((f): Pt[] => [[f, w], [w, f]]));
-const pick = (): number => WALKS[Math.floor(Math.random() * WALKS.length)];
 const isH = (p: Pt) => ALL_WALKS.includes(p[1]);
+/** Тротуар, по которому путь между двумя координатами короче всего. */
+const nearest = (a: number, b: number): number => WALKS.reduce((best, w) => (Math.abs(a - w) + Math.abs(b - w) < Math.abs(a - best) + Math.abs(b - best) ? w : best), WALKS[0]);
+const CAR_LEN = 0.72;
+/** Дорога (её начало), на которой лежит координата поперёк дороги; null – не на дороге. */
+const roadAt = (v: number): number | null => {
+  for (const r of ROADS) if (v >= r && v < r + 2) return r;
+  return null;
+};
+/** Скорость движения на карте растёт медленнее скорости игры: на 3× город не мельтешит. */
+const visualSpeed = (speed: number): number => (speed <= 0 ? 0 : Math.pow(speed, 0.55));
 
 /** Маршрут по тротуарам между двумя точками на линиях сетки. */
 function route(a: Pt, b: Pt): Pt[] {
@@ -96,12 +113,12 @@ function route(a: Pt, b: Pt): Pt[] {
   const hb = isH(b);
   if (ha && hb) {
     if (a[1] === b[1]) return [a, b];
-    const vx = pick();
+    const vx = nearest(a[0], b[0]);
     return [a, [vx, a[1]], [vx, b[1]], b];
   }
   if (!ha && !hb) {
     if (a[0] === b[0]) return [a, b];
-    const hy = pick();
+    const hy = nearest(a[1], b[1]);
     return [a, [a[0], hy], [b[0], hy], b];
   }
   return ha ? [a, [b[0], a[1]], b] : [a, [a[0], b[1]], b];
@@ -479,14 +496,81 @@ export class SceneView {
       for (let k = 0; k < 6; k++) {
         const node = svgEl('g', { class: 'car' });
         drawCar(new Pen(node, 0, 0), 0, 0, axis, (i * 2 + k + 1) % 4);
-        this.cars.push({ node, axis, lane, dir, pos: CITY_MIN + Math.random() * (CITY_MAX - CITY_MIN), speed: 1.6 + Math.random() * 0.8, anchor: undefined });
+        const speed = 1.5 + Math.random() * 0.7;
+        this.cars.push({ node, axis, lane, dir, pos: CITY_MIN + ((k + Math.random() * 0.6) * (CITY_MAX - CITY_MIN)) / 6, speed, cur: speed, wait: 0, anchor: undefined });
       }
     });
   }
 
+  /**
+   * Правила движения: держим дистанцию в полосе, пропускаем на перекрёстке
+   * (главная – дороги вдоль оси x), стоим перед пешеходом на дороге.
+   */
+  private carTarget(c: Car, inside: { x: Set<string>; y: Set<string> }, nearX: Set<string>, onRoad: Map<string, number[]>): number {
+    const span = CITY_MAX - CITY_MIN;
+    const front = c.dir > 0 ? c.pos + CAR_LEN : c.pos;
+    let target = c.speed;
+    // машина впереди в той же полосе
+    for (const o of this.cars) {
+      if (o === c || o.axis !== c.axis || o.lane !== c.lane) continue;
+      const rear = c.dir > 0 ? o.pos : o.pos + CAR_LEN;
+      let gap = (rear - front) * c.dir;
+      if (gap < -CAR_LEN) gap += span;
+      if (gap < 0.35) target = 0;
+      else if (gap < 1.3) target = Math.min(target, o.cur);
+    }
+    const road = roadAt(c.lane);
+    if (road === null) return target;
+    // пешеход на дороге прямо перед машиной
+    for (const at of onRoad.get(c.axis + road) ?? []) {
+      const d = (at - front) * c.dir;
+      if (d > -0.25 && d < 0.95) target = 0;
+    }
+    // перекрёсток: не въезжаем, пока его пересекают
+    for (const r of ROADS) {
+      const d = ((c.dir > 0 ? r : r + 2) - front) * c.dir;
+      if (d < 0 || d > 0.6) continue;
+      const key = c.axis === 'x' ? `${r}|${road}` : `${road}|${r}`;
+      if ((c.axis === 'x' ? inside.y : inside.x).has(key)) target = 0;
+      else if (c.axis === 'y' && nearX.has(key)) target = 0;
+    }
+    return target;
+  }
+
   private moveCars(step: number): void {
+    // кто сейчас на перекрёстках и кто к ним подъезжает по главной
+    const inside = { x: new Set<string>(), y: new Set<string>() };
+    const nearX = new Set<string>();
     for (const c of this.cars) {
-      c.pos += c.dir * c.speed * step;
+      const road = roadAt(c.lane);
+      if (road === null) continue;
+      const front = c.dir > 0 ? c.pos + CAR_LEN : c.pos;
+      for (const r of ROADS) {
+        const key = c.axis === 'x' ? `${r}|${road}` : `${road}|${r}`;
+        if (c.pos + CAR_LEN > r - 0.05 && c.pos < r + 2.05) inside[c.axis].add(key);
+        else if (c.axis === 'x' && c.cur > 0.3) {
+          const d = ((c.dir > 0 ? r : r + 2) - front) * c.dir;
+          if (d >= 0 && d < 1.4) nearX.add(key);
+        }
+      }
+    }
+    // пешеходы, которые сейчас переходят дорогу
+    const onRoad = new Map<string, number[]>();
+    for (const w of this.walkers) {
+      if (!w.at) continue;
+      const rx = roadAt(w.at[0]);
+      const ry = roadAt(w.at[1]);
+      if (ry !== null && rx === null) (onRoad.get('x' + ry) ?? onRoad.set('x' + ry, []).get('x' + ry)!).push(w.at[0]);
+      if (rx !== null && ry === null) (onRoad.get('y' + rx) ?? onRoad.set('y' + rx, []).get('y' + rx)!).push(w.at[1]);
+    }
+    for (const c of this.cars) {
+      let target = this.carTarget(c, inside, nearX, onRoad);
+      // страховка от затора: слишком долго стоим – едем
+      c.wait = target === 0 ? c.wait + step : 0;
+      if (c.wait > 4) target = c.speed * 0.6;
+      c.cur += Math.max(-7 * step, Math.min(3 * step, target - c.cur));
+      if (c.cur < 0.02) c.cur = 0;
+      c.pos += c.dir * c.cur * step;
       if (c.pos > CITY_MAX) c.pos -= CITY_MAX - CITY_MIN;
       if (c.pos < CITY_MIN) c.pos += CITY_MAX - CITY_MIN;
       const p: Pt = c.axis === 'x' ? [c.pos, c.lane] : [c.lane, c.pos];
@@ -496,7 +580,7 @@ export class SceneView {
         c.anchor = undefined;
         continue;
       }
-      c.node.setAttribute('transform', `translate(${sx.toFixed(1)},${sy.toFixed(1)})`);
+      c.node.setAttribute('transform', `translate(${sx.toFixed(2)},${sy.toFixed(2)})`);
       const anchor = this.anchorFor(p);
       if (anchor !== c.anchor || !c.node.parentNode) {
         this.gObj.insertBefore(c.node, anchor);
@@ -595,7 +679,7 @@ export class SceneView {
         if (a.node.parentNode) a.node.remove();
         a.anchor = undefined;
       } else {
-        a.node.setAttribute('transform', `translate(${sx.toFixed(1)},${sy.toFixed(1)})`);
+        a.node.setAttribute('transform', `translate(${sx.toFixed(2)},${sy.toFixed(2)})`);
         const anchor = this.anchorFor(pos);
         if (anchor !== a.anchor || !a.node.parentNode) {
           this.gObj.insertBefore(a.node, anchor);
@@ -641,7 +725,7 @@ export class SceneView {
     const off = (Math.random() - 0.5) * 0.5;
     const shifted = pts.map((p, i): Pt => ((i === pts.length - 1 && enter) || (i === 0 && cup) ? p : [p[0] + off, p[1] + off]));
     const node = this.personNode(Math.floor(Math.random() * 6), cup !== null);
-    this.walkers.push({ node, pts: shifted, seg: 0, t: 0, speed: 0.9 + Math.random() * 0.5, phase: Math.random() * 6, enter, anchor: undefined });
+    this.walkers.push({ node, pts: shifted, seg: 0, t: 0, speed: 0.9 + Math.random() * 0.5, phase: Math.random() * 6, wait: 0, enter, anchor: undefined });
   }
 
   private spawnRandom(): void {
@@ -686,7 +770,7 @@ export class SceneView {
     this.applyNight(night);
     this.drawWeather(dt);
     if (speed === 0) return;
-    const step = dt * speed;
+    const step = dt * visualSpeed(speed);
     this.moveCars(step);
     this.moveActors(step);
     const dayness = hour >= 7 && hour < 22 ? 1 : 0.12;
@@ -705,7 +789,13 @@ export class SceneView {
       let a = w.pts[w.seg];
       let b = w.pts[w.seg + 1];
       let len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 0.001;
-      w.t += (step * w.speed) / len;
+      // у края дороги ждём, пока проедут машины
+      const here: Pt = [a[0] + (b[0] - a[0]) * w.t, a[1] + (b[1] - a[1]) * w.t];
+      const ahead = Math.min(1, w.t + 0.35 / len);
+      const next: Pt = [a[0] + (b[0] - a[0]) * ahead, a[1] + (b[1] - a[1]) * ahead];
+      const waiting = !this.onAnyRoad(here) && this.onAnyRoad(next) && w.wait < 5 && this.carNear(next);
+      w.wait = waiting ? w.wait + step : 0;
+      if (!waiting) w.t += (step * w.speed) / len;
       while (w.t >= 1 && w.seg < w.pts.length - 2) {
         w.t = (w.t - 1) * len;
         w.seg++;
@@ -724,6 +814,7 @@ export class SceneView {
         continue;
       }
       const pos: Pt = [a[0] + (b[0] - a[0]) * w.t, a[1] + (b[1] - a[1]) * w.t];
+      w.at = pos;
       const [sx, sy] = this.pen.pt(pos[0], pos[1]);
       alive.push(w);
       if (!this.on(sx, sy)) {
@@ -731,8 +822,8 @@ export class SceneView {
         w.anchor = undefined;
         continue;
       }
-      w.phase += step * 9;
-      w.node.setAttribute('transform', `translate(${sx.toFixed(1)},${(sy - Math.abs(Math.sin(w.phase)) * 1.2).toFixed(1)})`);
+      if (!waiting) w.phase += step * 8;
+      w.node.setAttribute('transform', `translate(${sx.toFixed(2)},${(sy - (waiting ? 0 : Math.abs(Math.sin(w.phase)) * 1.1)).toFixed(2)})`);
       const anchor = this.anchorFor(pos);
       if (anchor !== w.anchor || !w.node.parentNode) {
         this.gObj.insertBefore(w.node, anchor);
@@ -740,6 +831,26 @@ export class SceneView {
       }
     }
     this.walkers = alive;
+  }
+
+  private onAnyRoad(p: Pt): boolean {
+    return roadAt(p[0]) !== null || roadAt(p[1]) !== null;
+  }
+
+  /** Едет ли машина к точке перехода: смотрим обе полосы дороги на пару клеток вверх по движению. */
+  private carNear(p: Pt): boolean {
+    const rx = roadAt(p[0]);
+    const ry = roadAt(p[1]);
+    for (const c of this.cars) {
+      if (c.cur < 0.25) continue;
+      const road = roadAt(c.lane);
+      const at = c.axis === 'x' ? (road === ry && ry !== null ? p[0] : null) : road === rx && rx !== null ? p[1] : null;
+      if (at === null) continue;
+      const front = c.dir > 0 ? c.pos + CAR_LEN : c.pos;
+      const d = (at - front) * c.dir;
+      if (d > -CAR_LEN - 0.3 && d < 2.4) return true;
+    }
+    return false;
   }
 
   private applyNight(n: number): void {
