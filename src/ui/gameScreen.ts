@@ -2,6 +2,7 @@ import { calendarYear, dateLabel, monthIndex, monthOf, seasonOf } from '../core/
 import type { Speed } from '../core/clock';
 import { announcedInspection, type Command } from '../core/commands';
 import { genderOf, roleName } from '../core/text';
+import { bonusCost, canPraise } from '../core/chat';
 import { AGENCIES, gameLength, itemCost, type AccountingId, type AgencyId, type EquipmentId, type LoanProductId, type LocationId, type SupplierId } from '../core/config';
 import { eventById, fillVars, optionCost } from '../core/events';
 import { accountantMonthly, accountBlocked, computeScore, cushionDays, dailyFixed, payrollMonthly, taxOwed, upcoming } from '../core/finance';
@@ -537,6 +538,11 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
       const n = st.employees.filter((e) => e.role === 'barista' && worksOn(e, w)).length;
       return `<span class="${n === 0 ? 'loss' : n < st.posts ? 'warn' : ''} ${w === today ? 'today' : ''}" title="${n === 0 ? 'Кофейня закрыта' : n < st.posts ? 'Людей меньше, чем постов' : n > st.posts ? 'Лишние на смене: платите, а мощность та же' : 'Всё закрыто'}">${d} ${n}/${st.posts}</span>`;
     }).join('');
+    const msgs = (st.chat ?? []).slice(-14);
+    const bubbles = msgs.map((m, i) => `<div class="gs-msg ${m.from === 'me' ? 'me' : ''}">${m.from !== 'me' && msgs[i - 1]?.from !== m.from ? `<b>${m.from}</b>` : ''}<span>${m.text}</span><i>${dateLabel(m.day, b)}</i></div>`).join('');
+    const chat = `<div class="lbl">Чат команды</div><div class="gs-chat">${bubbles || '<div class="gs-note">Пока тихо. Команда напишет, когда будет о чём.</div>'}</div>
+      <div class="it-row gs-wrap">${cmd({ type: 'Praise' }, 'Похвалить команду', 'secondary gs-mini', canPraise(st) ? '' : 'disabled title="Не чаще раза в неделю"')}${cmd({ type: 'Bonus' }, `Премия всем, ${money(bonusCost(st))}`, 'secondary gs-mini', st.employees.length && st.cash >= bonusCost(st) ? '' : 'disabled')}</div>
+      <div class="gs-note">Похвала немного поднимает лояльность, премия – заметно. Просьбы и жалобы команды приходят сюда же.</div>`;
     const team = st.employees.map((e) => {
       const book = e.hasMedBook ? '' : e.medBookReadyDay !== null ? `<span class="warn">медкнижка через ${e.medBookReadyDay - st.day} дн.</span>` : cmd({ type: 'IssueMedBook', employeeId: e.id }, `Медкнижка ${money(b.costs.medBook)}`, 'secondary gs-mini');
       const loyalty = loyaltyOf(e, cfg);
@@ -573,7 +579,8 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
       <div class="lbl">Нанять · в штате ${st.employees.length} из ${b.staff.maxStaff}</div>
       <div class="gs-note">Опыт бариста поднимает качество напитков, а с ним репутацию и долю рынка. Команда со средним опытом выше трёх звёзд ещё и работает быстрее.</div>
       ${cands || '<div class="gs-note">Новые кандидаты придут в начале недели.</div>'}
-      <div class="it-row">${cmd({ type: 'PostVacancy' }, `Дать объявление, ${money(b.staff.vacancyCost)}`, 'secondary gs-mini', st.cash < b.staff.vacancyCost ? 'disabled' : '')}<span class="gs-note grow">Новые кандидаты сразу, среди них точно бариста с опытом от ${b.staff.vacancyMinExperience} звёзд</span></div>`;
+      <div class="it-row">${cmd({ type: 'PostVacancy' }, `Дать объявление, ${money(b.staff.vacancyCost)}`, 'secondary gs-mini', st.cash < b.staff.vacancyCost ? 'disabled' : '')}<span class="gs-note grow">Новые кандидаты сразу, среди них точно бариста с опытом от ${b.staff.vacancyMinExperience} звёзд</span></div>
+      ${chat}`;
   }
 
   function stockHtml(): string {

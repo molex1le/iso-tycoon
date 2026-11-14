@@ -12,6 +12,7 @@ import { processLoans, rescueAvailable } from './loans';
 import { nextRandom } from './rng';
 import { closedReason, demandView, periodCapacity, syncShifts } from './shop';
 import { finishMedBooks, updateStaffDay } from './staff';
+import { ambientChat } from './chat';
 import { refreshCandidates, type DayRecord, type GameState } from './state';
 
 export { round2 };
@@ -248,6 +249,7 @@ export function simulateDay(state: GameState, cfg: GameConfig = defaultConfig): 
   if (!state.finished) {
     // ---------- утро нового дня: то, что требует решения игрока ----------
     rollWeather(state, cfg);
+    ambientChat(state, cfg);
     if (monthEnd) state.pending.push({ kind: 'monthReport', month });
     rollUnplanned(state, cfg);
     morningInspections(state, cfg);

@@ -1,5 +1,6 @@
 import { clamp, round2, type GameConfig } from './config';
 import { say } from './feed';
+import { chatReact } from './chat';
 import { nextRandom } from './rng';
 import { baristas, hoursOf, syncShifts, weekdayOf, worksOn } from './shop';
 import type { Employee, GameState } from './state';
@@ -57,6 +58,7 @@ export function updateStaffDay(state: GameState, cfg: GameConfig, open: boolean)
   for (const id of quitters) {
     const e = state.employees.find((x) => x.id === id)!;
     state.employees = state.employees.filter((x) => x.id !== id);
+    chatReact(state, e, 'quit');
     say(state, cfg, 'quit', 'bad', { name: e.name });
   }
   if (quitters.length) syncShifts(state);

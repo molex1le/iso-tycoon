@@ -5,6 +5,7 @@ import { clamp, defaultConfig, round2, type AccountingId, type AgencyId, type Eq
 import { chooseOption } from './events';
 import { say, usd } from './feed';
 import { roleName } from './text';
+import { bonus, chatReact, praise } from './chat';
 import { syncShifts } from './shop';
 import { earnedSoFar } from './staff';
 import { fileDeclaration, payTax, spend } from './finance';
@@ -26,6 +27,8 @@ export type Command =
   | { type: 'SetSalary'; employeeId: number; salary: number }
   | { type: 'SetShift'; employeeId: number; weekday: number; on: boolean }
   | { type: 'AutoShifts' }
+  | { type: 'Praise' }
+  | { type: 'Bonus' }
   | { type: 'IssueMedBook'; employeeId: number }
   | { type: 'SetSupplier'; supplier: SupplierId }
   | { type: 'SetSafety'; factor: number }
@@ -87,6 +90,7 @@ function run(state: GameState, command: Command, cfg: GameConfig): boolean {
       state.candidates = state.candidates.filter((x) => x.id !== c.id);
       state.employees.push({ ...c, medBookReadyDay: null, fatigue: 0, hiredDay: state.day, official: command.official !== false, loyaltyBonus: 0 });
       syncShifts(state);
+      chatReact(state, state.employees[state.employees.length - 1], 'hired');
       say(state, cfg, 'hired', 'ok', { name: c.name, role: roleName(c.role, c.name), amount: usd(c.salary) });
       return true;
     }
@@ -104,6 +108,7 @@ function run(state: GameState, command: Command, cfg: GameConfig): boolean {
         triggerUnplanned(state, cfg, 'labour', 'Жалоба уволенного сотрудника');
         if (!e.official) triggerUnplanned(state, cfg, 'tax', 'Жалоба уволенного сотрудника');
       }
+      chatReact(state, e, 'fired');
       say(state, cfg, 'fired', 'info', { name: e.name, amount: usd(severance ? e.salary : 0) });
       return true;
     }
@@ -130,6 +135,7 @@ function run(state: GameState, command: Command, cfg: GameConfig): boolean {
       // снижение зарплаты люди запоминают, прибавка работает через лояльность сама
       if (salary < e.salary) e.loyaltyBonus += st.salaryCutLoyalty * Math.ceil((e.salary - salary) / st.salaryStep);
       say(state, cfg, salary > e.salary ? 'salaryUp' : 'salaryDown', salary > e.salary ? 'ok' : 'warn', { name: e.name, amount: usd(salary) }, 0);
+      chatReact(state, e, salary > e.salary ? 'raise' : 'cut');
       if (salary > e.salary) delete e.promiseDay;
       e.salary = salary;
       return true;
@@ -143,6 +149,10 @@ function run(state: GameState, command: Command, cfg: GameConfig): boolean {
       e.shifts![command.weekday] = command.on;
       return true;
     }
+    case 'Praise':
+      return praise(state);
+    case 'Bonus':
+      return bonus(state);
     case 'AutoShifts': {
       state.autoShifts = true;
       syncShifts(state);

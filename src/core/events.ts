@@ -9,6 +9,7 @@ import { baristas, demandView, machineOrdersPerHour, syncShifts } from './shop';
 import { loyaltyOf, traitOf } from './staff';
 import type { Employee, GameState, Pending } from './state';
 import { fillText } from './text';
+import { pushChat } from './chat';
 
 type EventPending = Extract<Pending, { kind: 'event' }>;
 
@@ -75,6 +76,8 @@ function push(state: GameState, e: EventDef, target: Employee | undefined, vars:
   state.eventLog[e.id] = state.day;
   state.lastEventDay = state.day;
   state.pending.push({ kind: 'event', eventId: e.id, targetId: target?.id ?? null, vars: { ...vars, name: target?.name ?? '' } });
+  // истории сотрудников дублируются в чат команды
+  if (target) pushChat(state, target.name, `${fillVars(e.title, { ...vars, name: target.name })}. ${fillVars(e.text, { ...vars, name: target.name })}`);
 }
 
 /** Внешний повод, например, срыв поставки. */
@@ -169,6 +172,7 @@ export function chooseOption(state: GameState, cfg: GameConfig, index: number): 
   if (!o) return false;
   state.pending.shift();
   const target = state.employees.find((x) => x.id === (p as EventPending).targetId);
+  if (target) pushChat(state, 'me', o.label);
   spend(state, 'services', optionCost(state, o));
   let fx = o.fx;
   if (o.chance !== undefined) {

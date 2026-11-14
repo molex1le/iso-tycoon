@@ -108,3 +108,26 @@ describe('пол работников', () => {
     expect(fillText('Принят[|а] на работу: {name}', { name: 'Глеб Тарасов' })).toBe('Принят на работу: Глеб Тарасов');
   });
 });
+
+describe('чат команды', () => {
+  it('не трогает общий генератор случайности и пишет по настроению', async () => {
+    const { ambientChat, praise, canPraise, bonus } = await import('../src/core/chat');
+    const { createInitialState } = await import('../src/core/state');
+    const { defaultConfig } = await import('../src/core/config');
+    const s = createInitialState(11);
+    s.day = 3;
+    const rng = s.rngState;
+    ambientChat(s, defaultConfig);
+    expect(s.rngState).toBe(rng);
+    expect(s.chat).toHaveLength(1);
+    expect(s.employees.map((e) => e.name)).toContain(s.chat![0].from);
+    expect(s.chat![0].text).not.toMatch(/[[\]|]/);
+    const loyal = s.employees[0].loyaltyBonus;
+    expect(praise(s)).toBe(true);
+    expect(canPraise(s)).toBe(false);
+    expect(s.employees[0].loyaltyBonus).toBeGreaterThan(loyal);
+    const cash = s.cash;
+    expect(bonus(s)).toBe(true);
+    expect(s.cash).toBe(cash - 50 * s.employees.length);
+  });
+});

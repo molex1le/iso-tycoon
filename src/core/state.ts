@@ -270,6 +270,9 @@ export interface GameState {
   overtimeAccrued: number;
   /** график смен расставляется сам; выключается, когда игрок правит его руками */
   autoShifts?: boolean;
+  /** чат с командой: последние сообщения */
+  chat?: { day: number; from: string; text: string }[];
+  lastPraiseDay?: number;
   inventory: Record<string, Batch[]>;
   cleanliness: number;
   /** скрытый дефект помещения */
