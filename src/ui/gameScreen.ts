@@ -74,6 +74,7 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
   let feedbackOpen = false;
   let tutStep = !settings.tutorialDone && game.state.day === 1 && game.state.commandLog.length === 0 ? 0 : -1;
   let themeApplied = '';
+  let themeFadeTimer = 0;
   let feedSeen = game.state.feed.length;
   let visitKey = '';
   let visitShown = 0;
@@ -873,6 +874,12 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
     const night = settings.theme === 'night' || (settings.theme === 'auto' && nightFactor(game.clock.hour) > 0.55);
     const next = night ? 'night' : 'day';
     if (next === themeApplied) return;
+    // панели меняют цвета плавно, а не щелчком
+    if (themeApplied) {
+      screen.classList.add('gs-theme-fade');
+      window.clearTimeout(themeFadeTimer);
+      themeFadeTimer = window.setTimeout(() => screen.classList.remove('gs-theme-fade'), 2600);
+    }
     themeApplied = next;
     if (night) screen.dataset.theme = 'night';
     else delete screen.dataset.theme;

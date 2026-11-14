@@ -109,9 +109,13 @@ function route(a: Pt, b: Pt): Pt[] {
 
 /** 0 – день, 1 – ночь, плавные сумерки. */
 export function nightFactor(hour: number): number {
-  const ramp = (a: number, b: number) => Math.min(1, Math.max(0, (hour - a) / (b - a)));
-  if (hour < 12) return 1 - ramp(3.5, 5.5);
-  return ramp(18, 21);
+  // длинные сумерки со сглаживанием: рассвет 3:30–7:30, закат 17:00–22:00
+  const ramp = (a: number, b: number) => {
+    const t = Math.min(1, Math.max(0, (hour - a) / (b - a)));
+    return t * t * (3 - 2 * t);
+  };
+  if (hour < 12) return 1 - ramp(3.5, 7.5);
+  return ramp(17, 22);
 }
 
 export class SceneView {
@@ -714,11 +718,11 @@ export class SceneView {
   }
 
   private applyNight(n: number): void {
-    const v = Math.round(n * 50) / 50;
+    const v = Math.round(n * 200) / 200;
     if (v === this.shownNight) return;
     this.shownNight = v;
     const st = this.host.style;
-    st.setProperty('--dim', `${Math.round(v * 58)}%`);
+    st.setProperty('--dim', `${(v * 48).toFixed(1)}%`);
     st.setProperty('--lit', `${Math.round(Math.min(1, v * 1.6) * 100)}%`);
     st.setProperty('--glow', String(Math.min(1, v * 1.4)));
     st.setProperty('--nightk', String(v));

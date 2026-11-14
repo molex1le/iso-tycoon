@@ -242,3 +242,7 @@ html, body { margin: 0; height: 100%; background: var(--surface); }
 .st-slot .it-row { flex-wrap: wrap; }
 .st-slot .it-row > .it-btn { flex: 1 1 110px; min-height: 40px; }
 .st-slot .it-row > .st-slot-mini { flex: 0 1 auto; font-size: 13px; }
+
+/* плавная смена дневной и ночной темы панелей */
+.gs-theme-fade, .gs-theme-fade *:not(.gs-map *):not(.gs-interior *) { transition: background-color 2.4s ease, color 2.4s ease, border-color 2.4s ease, box-shadow 2.4s ease !important; }
+@media (prefers-reduced-motion: reduce) { .gs-theme-fade, .gs-theme-fade * { transition: none !important; } }
