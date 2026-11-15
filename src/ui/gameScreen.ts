@@ -22,7 +22,7 @@ import scenarioData from '../data/devScenarios.json';
 import tips from '../data/tips.json';
 import tutorial from '../data/tutorial.json';
 import { HallLife, hallSize, interiorSvg } from './scene/interior';
-import { branchOffer } from '../core/branch';
+import { branchOffer, branchRefund, closedRival, type SiteId } from '../core/branch';
 import { weatherOf, type WeatherId } from '../core/weather';
 
 interface DevScenario { id: string; title: string; note: string; day: number; reputation?: number; cashAtLeast?: number; cashTo?: number; rival?: boolean }
@@ -72,6 +72,8 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
   let debugOpen = false;
   let flowsOn = false;
   let shopsOpen = false;
+  let netDistrict: LocationId = 'metro';
+  let pickingLot = false;
   const hall = new HallLife();
   const fb = { clear: 0, fun: 0, hard: 0, text: '' };
   let fbCopied = false;
@@ -121,7 +123,15 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
   const tutEl = ref('tut');
   const spotEl = ref('spot');
   const scene = new SceneView(ref('map'), (id) => {
-    if (id === 'player' || id === 'branch') {
+    if (id?.startsWith('lot-')) {
+      // выбрали район для второй точки прямо на карте
+      netDistrict = id.slice(4) as LocationId;
+      pickingLot = false;
+      selected = null;
+      windowOpen = true;
+      tab = 'net';
+      audio.play('open');
+    } else if (id === 'player' || id === 'branch') {
       selected = null;
       windowOpen = true;
       tab = id === 'branch' ? 'net' : 'hall';
@@ -216,6 +226,8 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
   // ---------- карта ----------
   function syncScene(): void {
     const st = s();
+    if (st.branch || windowOpen) pickingLot = false;
+    scene.setChoosing(pickingLot);
     const l = last();
     const reason = closedReason(st, cfg);
     const title = /«(.+)»/.exec(st.shopName)?.[1] ?? st.shopName;
@@ -350,18 +362,29 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
     const avgProfit = recent.length ? recent.reduce((a, r) => a + (r.branchProfit ?? 0), 0) / recent.length : 0;
     const head = `<div class="gs-note">Вторая точка работает под управляющим: та же формула спроса, своя узнаваемость, общие касса, налог и репутация. Нужно ${c.minDay} дней работы и репутация от ${String(c.minReputation).replace('.', ',')}.</div>`;
     if (br) {
-      return `<div class="gs-sec">${head}<div class="gs-card"><div class="it-row"><b class="grow">Филиал: ${b.locations[br.location].name}</b><span class="num">с ${br.openedDay}-го дня</span></div>
+      return `<div class="gs-sec">${head}<div class="gs-card"><div class="it-row"><b class="grow">Филиал: ${b.locations[br.location].name}, ${c.sites[br.site ?? 'corner'].name.toLowerCase()}</b><span class="num">${br.owned ? 'в собственности' : 'в аренде'} · с ${dateLabel(br.openedDay, b)}</span></div>
         <div class="gs-facts">${row('Выручка вчера', money(br.lastRevenue))}${row('Итог вчера', signedMoney(br.lastProfit), br.lastProfit < 0 ? 'loss' : 'money')}${row('В среднем за 30 дней', signedMoney(avgProfit) + ' / день', avgProfit < 0 ? 'loss' : 'money')}${row('Узнаваемость', percent(br.awareness), '', 'awareness')}${row('Касса сходится', percent(br.efficiency))}</div>
         <div class="gs-note">Расходы филиала: аренда, управляющий ${money(c.managerSalary)} и команда ${money(c.staffMonthly)} в месяц, списываются каждый день.</div>
-        ${cmd({ type: 'CloseBranch' }, `Закрыть филиал (вернётся ${money(Math.round(c.equipment * c.closeRefundShare))})`, 'danger')}</div></div>`;
+        ${cmd({ type: 'CloseBranch' }, `Закрыть филиал (вернётся ${money(branchRefund(st, cfg))})`, 'danger')}</div></div>`;
     }
-    const cards = (Object.keys(b.locations) as LocationId[]).map((id) => {
-      const o = branchOffer(st, cfg, id);
-      const l = b.locations[id];
-      return `<div class="gs-card"><b>${l.name}</b><div class="gs-facts">${row('Поток', `${l.footTraffic} чел/день`)}${row('Аренда', money(l.rent) + '/мес')}${row('Открытие', money(o.cost))}</div>
-        ${o.available ? cmd({ type: 'OpenBranch', location: id }, 'Открыть филиал', 'primary') : `<div class="gs-note">${o.reason}</div>`}</div>`;
+    const districts = (Object.keys(b.locations) as LocationId[]).filter((id) => id !== st.options.location);
+    if (!districts.includes(netDistrict)) netDistrict = districts[0];
+    const l = b.locations[netDistrict];
+    const tabs = districts.map((id) => `<button class="${id === netDistrict ? 'on' : ''}" data-net-district="${id}" data-k="nd-${id}">${b.locations[id].name}</button>`).join('');
+    const rivalName = closedRival(st);
+    const cards = (Object.keys(c.sites) as SiteId[]).map((sid) => {
+      const site = c.sites[sid];
+      const rent = branchOffer(st, cfg, netDistrict, sid, false);
+      const buy = branchOffer(st, cfg, netDistrict, sid, true);
+      const blocked = rent.reason && rent.reason !== 'Не хватает денег' ? rent.reason : '';
+      return `<div class="gs-card"><b>${site.name}${site.needsClosedRival && rivalName ? ` – «${rivalName}»` : ''}</b><div class="gs-note">${site.text}</div>
+        <div class="gs-facts">${row('Поток', `${Math.round(l.footTraffic * site.traffic)} чел/день`)}${row('Аренда', money(rent.rent) + '/мес')}${row('Открыть в аренду', money(rent.cost))}${row('Купить помещение', money(buy.cost))}</div>
+        ${blocked ? `<div class="gs-note">${blocked}</div>` : `<div class="it-row gs-wrap">${cmd({ type: 'OpenBranch', location: netDistrict, site: sid }, 'Арендовать', 'primary gs-mini', rent.available ? '' : 'disabled title="Не хватает денег"')}${cmd({ type: 'OpenBranch', location: netDistrict, site: sid, buy: true }, 'Купить', 'secondary gs-mini', buy.available ? '' : 'disabled title="Не хватает денег"')}</div>`}</div>`;
     }).join('');
-    return `<div class="gs-sec">${head}<div class="gs-branch-loc">${cards}</div></div>`;
+    return `<div class="gs-sec">${head}
+      <div class="it-row"><div class="it-seg grow">${tabs}</div><button class="it-btn it-btn--secondary gs-mini" data-pick-lot data-k="pick-lot">Выбрать район на карте</button></div>
+      <div class="gs-note">Аренда – меньше денег сразу, но платёж каждый месяц и он растёт с годами. Покупка – цена ${c.buyMonths} месяцев аренды, зато помещение ваше: при закрытии вернётся ${Math.round(c.buyRefundShare * 100)}% цены.</div>
+      <div class="gs-branch-loc">${cards}</div></div>`;
   }
 
   function adviceHtml(): string {
@@ -1087,7 +1110,8 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
         + (st.branch ? item('branch', 'Вторая точка', 'ваш филиал', 'me') : '')
         + st.competitors.map((c, i) => item('rival' + i, c.name, c.opening ? `строится, ещё ${Math.max(1, c.closedUntilDay - st.day)} дн.` : st.day <= c.closedUntilDay ? 'закрыто' : `доля ${percent(v.rivalShares[i] ?? 0)} · чек ${price(c.avgCheck)}`)).join('')
       : '';
-    fill(shopsEl, `<button class="it-tab ${shopsOpen ? 'on' : ''}" data-shops data-k="sh-toggle" aria-expanded="${shopsOpen}">Кофейни · ${1 + (st.branch ? 1 : 0) + st.competitors.length}</button>${list}`);
+    const pick = pickingLot ? `<div class="gs-pick"><b>Выберите район</b><span>Кликните по помещению с меткой в другом районе.</span><button class="it-btn it-btn--ghost gs-mini" data-tab="net" data-k="pick-cancel">Отмена</button></div>` : '';
+    fill(shopsEl, `${pick}<button class="it-tab ${shopsOpen ? 'on' : ''}" data-shops data-k="sh-toggle" aria-expanded="${shopsOpen}">Кофейни · ${1 + (st.branch ? 1 : 0) + st.competitors.length}</button>${list}`);
     shopsEl.hidden = windowOpen;
   }
 
@@ -1174,6 +1198,13 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
       game.clock.pause();
     } else if (d.flows !== undefined) flowsOn = !flowsOn;
     else if (d.shops !== undefined) shopsOpen = !shopsOpen;
+    else if (d.netDistrict) netDistrict = d.netDistrict as LocationId;
+    else if (d.pickLot !== undefined) {
+      pickingLot = true;
+      windowOpen = false;
+      syncScene();
+      scene.focus('lot-' + netDistrict);
+    }
     else if (d.focus) {
       scene.focus(d.focus);
       selected = d.focus === 'player' || d.focus === 'branch' ? null : d.focus;

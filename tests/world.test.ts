@@ -98,3 +98,37 @@ describe('режим разработчика', () => {
     expect(game.state.competitors[before].opening).toBe(true);
   });
 });
+
+describe('сеть: аренда или покупка', () => {
+  const ready = () => {
+    const s = createInitialState(4);
+    s.day = 120;
+    s.reputation = 4;
+    s.cash = 200000;
+    return s;
+  };
+
+  it('во дворе дешевле и людей меньше; купленное помещение не платит аренду', async () => {
+    const { branchOffer, branchDay, branchRefund, branchBuyPrice } = await import('../src/core/branch');
+    const s = ready();
+    const corner = branchOffer(s, cfg, 'center', 'corner');
+    const yard = branchOffer(s, cfg, 'center', 'yard');
+    expect(yard.cost).toBeLessThan(corner.cost);
+    expect(yard.rent).toBeLessThan(corner.rent);
+    expect(branchOffer(s, cfg, 'center', 'corner', true).rent).toBe(0);
+    expect(applyCommand(s, { type: 'OpenBranch', location: 'center', site: 'corner', buy: true })).toBe(true);
+    expect(s.branch).toMatchObject({ site: 'corner', owned: true, pricePaid: branchBuyPrice(cfg, 'center', 'corner') });
+    s.ledger = {};
+    branchDay(s, cfg);
+    expect(s.ledger.rent ?? 0).toBe(0);
+    expect(branchRefund(s, cfg)).toBeGreaterThan(branchBuyPrice(cfg, 'center', 'corner') * 0.6);
+  });
+
+  it('место конкурента доступно, только пока он закрыт', async () => {
+    const { branchOffer } = await import('../src/core/branch');
+    const s = ready();
+    expect(branchOffer(s, cfg, 'center', 'rival').available).toBe(false);
+    s.competitors[0].closedUntilDay = s.day + 10;
+    expect(branchOffer(s, cfg, 'center', 'rival').available).toBe(true);
+  });
+});

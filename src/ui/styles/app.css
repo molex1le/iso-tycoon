@@ -311,3 +311,4 @@ html, body { margin: 0; height: 100%; background: var(--surface); }
   .st-feats { display: none; }
   .st-veil { background: color-mix(in srgb, var(--surface) 70%, transparent); }
 }
+.gs-pick { display: flex; flex-direction: column; gap: 4px; padding: 8px 10px; border-radius: var(--radius-sm); background: var(--coin); color: #2a1c0c; font-size: 13px; }

@@ -215,6 +215,14 @@ export class SceneView {
     this.applyCam();
   }
 
+  /** Показать на карте свободные помещения в других районах (выбор места для второй точки). */
+  setChoosing(on: boolean): void {
+    if (on === this.choosing) return;
+    this.choosing = on;
+    this.layout = layoutFor(this.location, this.choosing, this.town);
+    this.rebuildStatics();
+  }
+
   /** Плавно навести камеру на здание по его id; false – такого здания на карте нет. */
   focus(id: string): boolean {
     const b = this.layout.buildings.find((x) => x.id === id);

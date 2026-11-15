@@ -800,7 +800,35 @@
     "startAwareness": 0.3,
     "awarenessGrowth": 0.012,
     "closeRefundShare": 0.3,
-    "newManagerCost": 400
+    "newManagerCost": 400,
+    "buyMonths": 30,
+    "buyRefundShare": 0.7,
+    "sites": {
+      "corner": {
+        "name": "Помещение на первой линии",
+        "text": "Пустует после магазина. Мимо идёт весь поток района.",
+        "traffic": 1,
+        "rentFactor": 1,
+        "equipmentFactor": 1,
+        "needsClosedRival": false
+      },
+      "yard": {
+        "name": "Помещение во дворе",
+        "text": "Дёшево, но с улицы не видно: доходит меньше людей.",
+        "traffic": 0.7,
+        "rentFactor": 0.6,
+        "equipmentFactor": 1,
+        "needsClosedRival": false
+      },
+      "rival": {
+        "name": "Место закрывшейся кофейни",
+        "text": "Конкурент закрылся и сдаёт помещение с оборудованием. Гости привыкли сюда ходить, хозяин это знает и просит больше.",
+        "traffic": 1.1,
+        "rentFactor": 1.15,
+        "equipmentFactor": 0.5,
+        "needsClosedRival": true
+      }
+    }
   },
   "years": {
     "rentGrowth": 1.08

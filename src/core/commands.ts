@@ -1,5 +1,5 @@
 import type { LocationId } from './config';
-import { closeBranch, openBranch } from './branch';
+import { closeBranch, openBranch, type SiteId } from './branch';
 import { continueYear } from './years';
 import { clamp, defaultConfig, round2, type AccountingId, type AgencyId, type EquipmentId, type GameConfig, type LoanProductId, type SupplierId } from './config';
 import { chooseOption } from './events';
@@ -56,7 +56,7 @@ export type Command =
   | { type: 'Acknowledge' }
   | { type: 'ResolveInspection'; choice: 'accept' | 'contest' | 'bribe' }
   | { type: 'AnswerInspector'; reply: Reply }
-  | { type: 'OpenBranch'; location: LocationId }
+  | { type: 'OpenBranch'; location: LocationId; site?: SiteId; buy?: boolean }
   | { type: 'CloseBranch' }
   | { type: 'ContinueYear' }
   | { type: 'ChooseEventOption'; index: number }
@@ -320,7 +320,7 @@ function run(state: GameState, command: Command, cfg: GameConfig): boolean {
     case 'AnswerInspector':
       return answerInspector(state, cfg, command.reply);
     case 'OpenBranch':
-      return openBranch(state, cfg, command.location);
+      return openBranch(state, cfg, command.location, command.site, command.buy === true);
     case 'CloseBranch':
       return closeBranch(state, cfg);
     case 'ContinueYear':
