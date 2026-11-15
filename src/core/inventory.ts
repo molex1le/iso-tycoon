@@ -36,7 +36,7 @@ export function orderQuantity(state: GameState, m: Material, cfg: GameConfig): n
   return Math.max(0, Math.ceil(need - stockQty(state, m.id)));
 }
 
-/** Сколько разумно привозить с каждой поставкой при текущем спросе. */
+/** До какого запаса разумно пополнять склад с каждой поставкой при текущем спросе. */
 export function suggestedStanding(state: GameState, m: Material, cfg: GameConfig): number {
   const step = cfg.balance.inventory.standingStep;
   return Math.ceil((expectedDailyUsage(state, cfg)[m.id] * m.deliveryEveryDays * state.safetyFactor) / step) * step;
@@ -73,7 +73,8 @@ export function receiveDeliveries(state: GameState, cfg: GameConfig): void {
       failed.push(m.name);
       continue;
     }
-    const qty = autoOrderOn(state) ? orderQuantity(state, m, cfg) : (state.standing?.[m.id] ?? 0);
+    // ручной режим: игрок задаёт, до какого запаса пополнять склад с каждой поставкой
+    const qty = autoOrderOn(state) ? orderQuantity(state, m, cfg) : Math.max(0, Math.ceil((state.standing?.[m.id] ?? 0) - stockQty(state, m.id)));
     if (qty <= 0) continue;
     const unitCost = round2(m.cost * supplier.priceFactor * costFactor(state));
     state.inventory[m.id].push({ qty, expiresDay: state.day + shelfLife(state, m, cfg) - 1, unitCost });

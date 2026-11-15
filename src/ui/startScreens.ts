@@ -1,4 +1,4 @@
-import { totalDays, type AccountingId, type DifficultyId, type EquipmentId, type FormId, type GameConfig, type LocationId, type TaxRegimeId } from '../core/config';
+import { totalDays, type AccountingId, type DifficultyId, type EquipmentId, type FormId, type GameConfig, type LocationId, type SupplierId, type TaxRegimeId } from '../core/config';
 import { cushionDays } from '../core/finance';
 import { createInitialState, defaultOptions, rollDefects, type NewGameOptions } from '../core/state';
 import { money, monthName } from './format';
@@ -153,7 +153,10 @@ export function mountWizard(root: HTMLElement, cfg: GameConfig, seed: number, on
         <div class="lbl">Кофемашина</div>
         <div class="st-opts">${(['machineBasic', 'machinePro'] as const).map((id) => opt('machine', id, o.machine === id, `${b.equipment[id].name}, ${money(b.equipment[id].price)}`, b.equipment[id].text)).join('')}</div>
         <div class="lbl">Ещё</div>
-        <div class="st-opts">${EXTRAS.map((id) => opt('extra', id, o.extras.includes(id), `${b.equipment[id].name}, ${money(b.equipment[id].price)}`, b.equipment[id].text)).join('')}</div>`;
+        <div class="st-opts">${EXTRAS.map((id) => opt('extra', id, o.extras.includes(id), `${b.equipment[id].name}, ${money(b.equipment[id].price)}`, b.equipment[id].text)).join('')}</div>
+        <div class="lbl">Поставщик продуктов</div>
+        <div class="st-opts">${(Object.keys(b.suppliers) as SupplierId[]).map((id) => opt('supplier', id, (o.supplier ?? 'reliable') === id, b.suppliers[id].name, b.suppliers[id].text)).join('')}</div>
+        <div class="gs-note">${b.difficulties[o.difficulty].autoOrder ? 'В «Учебке» закупки идут сами. Поставщика можно сменить в любой момент.' : `Закупки на вас: до какого запаса пополнять склад, решаете во вкладке «Склад». Можно нанять закупщика за ${money(b.inventory.buyerMonthly)} в месяц. Поставщика можно сменить в любой момент.`}</div>`;
       default: {
         const p = createInitialState(seed, o, cfg);
         const cushion = cushionDays(p, cfg);
@@ -262,6 +265,7 @@ export function mountWizard(root: HTMLElement, cfg: GameConfig, seed: number, on
     } else if (d.acc) o.accounting = d.acc as AccountingId;
     else if (d.staff) o.startStaffOfficial = d.staff === '1';
     else if (d.regime) o.taxRegime = d.regime as TaxRegimeId;
+    else if (d.supplier) o.supplier = d.supplier as SupplierId;
     else if (d.location) o.location = d.location as LocationId;
     else if (d.inspect) o.premisesInspection = !o.premisesInspection;
     else if (d.repair) o.repair = d.repair as NewGameOptions['repair'];

@@ -459,7 +459,7 @@ describe('закупки', () => {
     expect(subscriptionsMonthly(r, base) - before).toBe(base.balance.inventory.buyerMonthly);
   });
 
-  it('ручной заказ: привозят ровно столько, сколько указано, даже если склад полон', async () => {
+  it('ручной заказ: склад пополняют до указанного запаса', async () => {
     const { stockQty } = await import('../src/core/inventory');
     const s = createInitialState(2);
     applyCommand(s, { type: 'SetStanding', materialId: 'pastry', qty: 200 });
@@ -467,9 +467,10 @@ describe('закупки', () => {
     simulateDay(s);
     const left = stockQty(s, 'pastry');
     simulateDay(s);
-    // утром второго дня приехало 200, за день продали меньше
-    expect(s.history[1].expenses.purchases).toBeGreaterThan(200 * 1.0 - 0.01);
-    expect(stockQty(s, 'pastry')).toBeGreaterThan(left + 100);
+    // утром второго дня склад довели до 200, за день продали меньше
+    expect(s.history[1].expenses.purchases).toBeGreaterThan((200 - left) * 1.0 - 0.01);
+    expect(stockQty(s, 'pastry')).toBeGreaterThan(100);
+    expect(stockQty(s, 'pastry')).toBeLessThanOrEqual(200);
   });
 
   it('срочный дозаказ приезжает на следующее утро и стоит на четверть дороже', async () => {

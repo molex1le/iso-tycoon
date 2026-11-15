@@ -9,7 +9,7 @@ import { accountantMonthly, accountBlocked, computeScore, cushionDays, dailyFixe
 import { loanOffer, loansDebt } from '../core/loans';
 import type { Game } from '../core/game';
 import { agencyScore, checklist, contestChance, inspectorById, itemScore } from '../core/inspections';
-import { expectedDailyUsage, lowStock, stockQty, shelfLife } from '../core/inventory';
+import { autoOrderOn, expectedDailyUsage, lowStock, stockQty, shelfLife, suggestedStanding } from '../core/inventory';
 import { closedReason, demandView, hoursOf, hoursPerWeek, rivalItemPrice, weekdayOf, worksOn } from '../core/shop';
 import { earnedSoFar, loyaltyOf, moodOf, shiftRate, type Mood } from '../core/staff';
 import type { DayRecord, ExpenseCategory, GameState, Pending } from '../core/state';
@@ -589,15 +589,36 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
     const sup = (Object.keys(b.suppliers) as SupplierId[]).map((id) => `<button class="${st.supplier === id ? 'on' : ''}" data-cmd='${JSON.stringify({ type: 'SetSupplier', supplier: id })}' data-k="sup-${id}">${b.suppliers[id].name}</button>`).join('');
     const step = b.inventory.safetyStep;
     const low = new Set(lowStock(st, cfg).map((m) => m.id));
+    const auto = autoOrderOn(st);
+    const supplier = b.suppliers[st.supplier];
+    const ostep = b.inventory.standingStep;
+    const order = (m: (typeof cfg.materials)[number]) => {
+      if (auto) return '';
+      const cur = st.standing?.[m.id] ?? 0;
+      const rec = suggestedStanding(st, m, cfg);
+      const urgent = st.urgent?.[m.id] ?? 0;
+      // срочно берём примерно на два дня продаж
+      const uq = Math.max(ostep, Math.ceil((usage[m.id] * 2) / ostep) * ostep);
+      const unit = m.cost * supplier.priceFactor;
+      return `<div class="gs-price"><div class="n"><b>Пополнять до</b><span>по спросу нужно ${rec} · полный запас стоит ${money(cur * unit)}</span></div>
+          <button class="it-btn it-btn--secondary gs-step" data-cmd='${JSON.stringify({ type: 'SetStanding', materialId: m.id, qty: cur - ostep })}' data-k="st-${m.id}-m" aria-label="${m.name}: меньше запас" ${cur <= 0 ? 'disabled' : ''}>−</button>
+          <span class="v ${cur < rec * 0.8 ? 'loss' : cur > rec * 1.4 ? 'warn' : ''}">${cur}</span>
+          <button class="it-btn it-btn--secondary gs-step" data-cmd='${JSON.stringify({ type: 'SetStanding', materialId: m.id, qty: cur + ostep })}' data-k="st-${m.id}-p" aria-label="${m.name}: больше запас">+</button></div>
+        <div class="it-row">${cmd({ type: 'UrgentOrder', materialId: m.id, qty: uq }, `Срочно +${uq} на завтра, ${money(uq * unit * b.inventory.urgentPriceFactor)}`, 'ghost gs-mini')}${urgent ? `<span class="gs-note">едет: ${urgent} порц.</span>` : ''}</div>`;
+    };
     const mats = cfg.materials.map((m) => {
       const qty = stockQty(st, m.id);
       const days = usage[m.id] > 0 ? qty / usage[m.id] : 99;
       const next = m.deliveryEveryDays - ((st.day - 1) % m.deliveryEveryDays);
       return `<div class="gs-card"><div class="it-row"><b class="grow">${m.name}${low.has(m.id) ? ' <span class="warn">· заканчивается</span>' : ''}</b><span class="num ${days < 1 ? 'loss' : ''}">${Math.round(qty)} порц.</span></div>
-        <div class="gs-note">хватит на ${days >= 99 ? '∞' : days.toFixed(1).replace('.', ',')} дн. · поставка ${m.deliveryEveryDays === 1 ? 'каждый день' : 'через ' + next + ' дн.'} · хранится ${shelfLife(st, m, cfg)} дн.</div></div>`;
+        <div class="gs-note">хватит на ${days >= 99 ? '∞' : days.toFixed(1).replace('.', ',')} дн. · поставка ${m.deliveryEveryDays === 1 ? 'каждый день' : 'через ' + next + ' дн.'} · хранится ${shelfLife(st, m, cfg)} дн.</div>${order(m)}</div>`;
     }).join('');
-    return `<div class="lbl">Поставщик</div><div class="it-seg">${sup}</div><div class="gs-note">${b.suppliers[st.supplier].text}</div>
-      <div class="gs-price"><div class="n"><b>Запас при автозаказе${q('safety')}</b><span>больше – реже пусто, но больше списаний</span></div>
+    return `<div class="lbl">Поставщик</div><div class="it-seg gs-seg2">${sup}</div><div class="gs-note">${b.suppliers[st.supplier].text}</div>
+      <div class="lbl">Закупки</div>
+      <div class="it-seg"><button class="${auto ? '' : 'on'}" data-cmd='${JSON.stringify({ type: 'SetAutoOrder', on: false })}' data-k="ao-0">Заказываю сам</button><button class="${auto ? 'on' : ''}" data-cmd='${JSON.stringify({ type: 'SetAutoOrder', on: true })}' data-k="ao-1">${b.difficulties[st.options.difficulty].autoOrder ? 'Автозакупка' : `Закупщик, ${money(b.inventory.buyerMonthly)}/мес`}</button></div>
+      <div class="gs-note">${auto ? 'Заказ считается сам по спросу и запасу.' : 'С каждой поставкой склад пополняют до запаса, который вы указали ниже. Мало – останетесь без продуктов, много – молоко и выпечка уйдут в просрочку.'}</div>
+      ${auto ? '' : `<div class="it-row">${cmd({ type: 'StandingBySuggestion' }, 'Пересчитать по спросу', 'secondary gs-mini')}<span class="gs-note grow">Ставит всем позициям рекомендованное количество на сегодня</span></div>`}
+      <div class="gs-price"><div class="n"><b>Запас${q('safety')}</b><span>больше – реже пусто, но больше списаний</span></div>
         <button class="it-btn it-btn--secondary gs-step" data-safety="${-step}" data-k="sf-m" aria-label="Меньше запас" ${st.safetyFactor <= b.inventory.safetyMin ? 'disabled' : ''}>−</button>
         <span class="v">${percent(st.safetyFactor)}</span>
         <button class="it-btn it-btn--secondary gs-step" data-safety="${step}" data-k="sf-p" aria-label="Больше запас" ${st.safetyFactor >= b.inventory.safetyMax ? 'disabled' : ''}>+</button></div>
