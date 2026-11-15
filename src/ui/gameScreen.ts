@@ -33,8 +33,8 @@ import { advise } from '../core/advisor';
 import { bribeCost, memoryLine, replyChance, type Reply } from '../core/inspections';
 import { gameSummary } from '../core/summary';
 
-type Tab = 'hall' | 'net' | 'overview' | 'finance' | 'prices' | 'staff' | 'stock' | 'checks' | 'gear' | 'bank' | 'dates' | 'journal';
-const TABS: [Tab, string][] = [['hall', 'Зал'], ['overview', 'Обзор'], ['finance', 'Финансы'], ['prices', 'Цены'], ['staff', 'Люди'], ['stock', 'Склад'], ['checks', 'Проверки'], ['gear', 'Техника'], ['bank', 'Банк'], ['net', 'Сеть'], ['dates', 'Сроки'], ['journal', 'Журнал']];
+type Tab = 'hall' | 'net' | 'overview' | 'finance' | 'prices' | 'rivals' | 'staff' | 'stock' | 'checks' | 'gear' | 'bank' | 'dates' | 'journal';
+const TABS: [Tab, string][] = [['hall', 'Зал'], ['overview', 'Обзор'], ['finance', 'Финансы'], ['prices', 'Цены'], ['rivals', 'Конкуренты'], ['staff', 'Люди'], ['stock', 'Склад'], ['checks', 'Проверки'], ['gear', 'Техника'], ['bank', 'Банк'], ['net', 'Сеть'], ['dates', 'Сроки'], ['journal', 'Журнал']];
 
 const STAR = '<svg class="it-ico" viewBox="0 0 20 20" style="color:var(--coin-shade)"><path d="m10 1.5 2.6 5.3 5.9.9-4.3 4.1 1 5.8L10 14.9l-5.2 2.7 1-5.8L1.5 7.7l5.9-.9z"/></svg>';
 const PERSON = '<svg class="it-ico" viewBox="0 0 20 20" style="color:var(--ink-muted)"><circle cx="10" cy="6" r="3.5"/><path d="M3 18c0-4 3-6.5 7-6.5s7 2.5 7 6.5z"/></svg>';
@@ -283,8 +283,8 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
     fill(navEl, TABS.map(([id, name]) => btn(id, name)).join(''));
     const loc = b.locations[st.options.location];
     fill(headEl, `<div class="grow"><span class="it-lvl">${b.forms[st.options.form].name} · ${loc.name.toUpperCase()}</span> <span class="ttl">${st.shopName}</span></div><button class="it-btn it-btn--ghost it-btn--icon" data-close data-k="close" aria-label="Закрыть">✕</button>`);
-    const flow: Partial<Record<Tab, boolean>> = { hall: false, overview: false, finance: false, journal: false };
-    const body = { net: netHtml, hall: hallHtml, overview: overviewHtml, finance: financeHtml, prices: pricesHtml, staff: staffHtml, stock: stockHtml, checks: checksHtml, gear: gearHtml, bank: bankHtml, dates: datesHtml, journal: journalHtml }[tab]();
+    const flow: Partial<Record<Tab, boolean>> = { hall: false, overview: false, finance: false, journal: false, rivals: false };
+    const body = { net: netHtml, hall: hallHtml, overview: overviewHtml, finance: financeHtml, prices: pricesHtml, rivals: rivalsHtml, staff: staffHtml, stock: stockHtml, checks: checksHtml, gear: gearHtml, bank: bankHtml, dates: datesHtml, journal: journalHtml }[tab]();
     fill(sideEl, flow[tab] === false ? body : `<div class="gs-cols">${body}</div>`);
   }
 
@@ -471,9 +471,44 @@ export function mountGameScreen(root: HTMLElement, game: Game, hooks: ScreenHook
       <tr class="total"><td>Итог</td>${totals.map((v) => cell(v, v < 0 ? 'loss' : 'money')).join('')}</tr></tbody></table>`;
   }
 
+  /** Отдельный экран конкурентов: кто сильнее и в чём, доля по времени, новости. */
+  function rivalsHtml(): string {
+    const st = s();
+    const v = demandView(st, cfg);
+    const num = (n: number) => n.toFixed(2).replace('.', ',');
+    const status = (c: GameState['competitors'][number]) => (c.opening ? `строится, ещё ${Math.max(1, c.closedUntilDay - st.day)} дн.` : st.day <= c.closedUntilDay ? `закрыто до ${dateLabel(c.closedUntilDay + 1, b)}` : 'работает');
+    const better = (mine: number, theirs: number, lowerIsBetter = false) => (Math.abs(mine - theirs) < 0.005 ? '' : (lowerIsBetter ? theirs < mine : theirs > mine) ? 'loss' : 'money');
+    const cols = st.competitors;
+    const table = `<div class="gs-pl-wrap"><table class="gs-pl gs-cmp"><thead><tr><th></th><th>Вы</th>${cols.map((c) => `<th>${c.name}</th>`).join('')}</tr></thead><tbody>
+      <tr><td>Состояние</td><td>${closedReason(st, cfg) ?? 'работает'}</td>${cols.map((c) => `<td>${status(c)}</td>`).join('')}</tr>
+      <tr class="total"><td>Доля прохожих</td><td>${percent(v.share)}</td>${cols.map((_c, i) => `<td class="${better(v.share, v.rivalShares[i] ?? 0)}">${percent(v.rivalShares[i] ?? 0)}</td>`).join('')}</tr>
+      <tr><td>Средний чек</td><td>${price(v.check)}</td>${cols.map((c) => `<td class="${better(v.check, c.avgCheck, true)}">${price(c.avgCheck)}</td>`).join('')}</tr>
+      <tr><td>Качество</td><td>${num(v.quality)}</td>${cols.map((c) => `<td class="${better(v.quality, c.quality)}">${num(c.quality)}</td>`).join('')}</tr>
+      <tr><td>Репутация</td><td>${stars(st.reputation)}</td>${cols.map((c) => `<td class="${better(st.reputation, c.reputation)}">${stars(c.reputation)}</td>`).join('')}</tr></tbody></table></div>
+      <div class="gs-note">Красным – там, где конкурент сильнее вас, зелёным – где слабее.</div>`;
+    const verdict = cols.filter((c) => !c.opening && st.day > c.closedUntilDay).map((c) => {
+      const parts: string[] = [];
+      const dp = c.avgCheck / v.check - 1;
+      if (Math.abs(dp) >= 0.05) parts.push(dp < 0 ? `дешевле вас на ${percent(-dp)}` : `дороже вас на ${percent(dp)}`);
+      if (Math.abs(c.quality - v.quality) >= 0.05) parts.push(c.quality > v.quality ? 'качество выше' : 'качество ниже');
+      if (Math.abs(c.reputation - st.reputation) >= 0.2) parts.push(c.reputation > st.reputation ? 'репутация лучше' : 'репутация хуже');
+      return `<div class="gs-card"><div class="it-row"><b class="grow">${c.name}</b><button class="it-btn it-btn--ghost gs-mini" data-focus="rival${st.competitors.indexOf(c)}" data-k="rv-${c.id}">Показать на карте</button></div><div class="gs-note">${parts.length ? cap(parts.join(', ')) + '.' : 'Почти не отличается от вас.'}</div></div>`;
+    }).join('');
+    const keys = new Set(['rivalMove', 'rivalClosed', 'rivalOpened', 'rivalBuilding', 'rivalNew', 'joinedRival']);
+    const news = [...st.feed].reverse().filter((f) => keys.has(f.key)).slice(0, 12);
+    const d = series(chartRange);
+    const names = st.competitors.map((c) => c.name);
+    const chart = lineChart('rv-sh', { title: 'Доля рынка, %', x: d.x, series: [{ name: 'Вы', color: 'var(--c1)', values: d.you }, { name: names[0], color: 'var(--c2)', values: d.r0 }, { name: names[1], color: 'var(--c3)', values: d.r1 }, ...(st.competitors.length > 2 ? [{ name: 'Новые', color: 'var(--c4)', values: d.rx }] : [])], format: (x) => Math.round(x) + '%', min: 0 });
+    return `<div class="gs-sec"><div class="gs-grid2">
+        <div class="gs-sec"><div class="lbl">Сравнение</div>${table}${verdict}</div>
+        <div class="gs-sec">${shareDonut()}${st.history.length > 1 ? chart : ''}
+          <div class="lbl">Новости конкурентов</div>${news.length ? news.map((f) => `<div class="gs-log"><span class="d">${dateLabel(f.day, b)}</span><div><b>${f.title}</b>${f.text ? ` – ${f.text}` : ''}</div></div>`).join('') : '<div class="gs-note">Пока тихо. Конкуренты отвечают, когда вы отбираете у них гостей.</div>'}</div>
+      </div></div>`;
+  }
+
   function journalHtml(): string {
     const feed = [...s().feed].reverse().slice(0, 80);
-    return feed.length ? feed.map((f) => `<div class="gs-log"><span class="d">день ${f.day}</span><div><b>${f.title}</b>${f.text ? ` – ${f.text}` : ''}</div></div>`).join('') : '<div class="gs-note">Пока ничего не случилось.</div>';
+    return feed.length ? feed.map((f) => `<div class="gs-log"><span class="d">${dateLabel(f.day, b)}</span><div><b>${f.title}</b>${f.text ? ` – ${f.text}` : ''}</div></div>`).join('') : '<div class="gs-note">Пока ничего не случилось.</div>';
   }
 
   function closedNote(): string {
