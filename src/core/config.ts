@@ -124,6 +124,8 @@ export interface EventDef {
     once?: boolean;
     cooldown?: number;
     minMonth?: number;
+    /** праздник: событие приходит в этот день каждый год, [месяц, день] */
+    date?: [number, number];
     form?: string;
     hasMachine?: boolean;
     cleanBelow?: number;

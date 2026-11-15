@@ -131,3 +131,24 @@ describe('чат команды', () => {
     expect(s.cash).toBe(cash - 50 * s.employees.length);
   });
 });
+
+describe('праздники', () => {
+  it('14 февраля событие приходит по календарю, без броска кубика', async () => {
+    const { rollEvents } = await import('../src/core/events');
+    const eventsJson = (await import('../src/data/events.json')).default;
+    const full = { ...cfg, events: eventsJson as unknown as typeof cfg.events };
+    const holidays = full.events.filter((e) => e.when.date);
+    expect(holidays.length).toBeGreaterThanOrEqual(7);
+    const s = createInitialState(21);
+    s.day = 44;
+    rollEvents(s, { ...full, events: holidays });
+    expect(s.pending).toHaveLength(0);
+    s.day = 45; // 14 февраля – 45-й день года
+    const rng = s.rngState;
+    rollEvents(s, full);
+    expect(s.pending[0]).toMatchObject({ kind: 'event', eventId: 'h_valentine' });
+    expect(s.rngState).toBe(rng);
+    // каждому празднику хватает вариантов ответа
+    for (const h of holidays) expect(h.options.length).toBeGreaterThanOrEqual(2);
+  });
+});

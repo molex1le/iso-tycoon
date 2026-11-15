@@ -1,4 +1,4 @@
-import { monthOf } from './calendar';
+import { dayOfMonth, monthOf } from './calendar';
 import { clamp, round2, totalDays, type EventDef, type EventFx, type EventOption, type GameConfig } from './config';
 import { say } from './feed';
 import { spend } from './finance';
@@ -47,7 +47,7 @@ function conditionOk(state: GameState, cfg: GameConfig, e: EventDef): boolean {
   const w = e.when;
   const b = cfg.balance;
   const last = state.eventLog[e.id];
-  if (w.trigger) return false;
+  if (w.trigger || w.date) return false;
   if (w.once && last !== undefined) return false;
   if (w.cooldown !== undefined && last !== undefined && state.day - last < w.cooldown) return false;
   if (w.minMonth !== undefined && state.day <= totalDays(b) && monthOf(state.day, b) < w.minMonth) return false;
@@ -89,6 +89,13 @@ export function fireTriggered(state: GameState, cfg: GameConfig, trigger: string
 /** Утро: бросок на случайное событие. Не чаще одного за minGapDays. */
 export function rollEvents(state: GameState, cfg: GameConfig): void {
   if (state.pending.some((p) => p.kind === 'event')) return;
+  // праздники приходят по календарю, без броска и без оглядки на паузу между событиями
+  const b = cfg.balance;
+  const holiday = cfg.events.find((e) => e.when.date && e.when.date[0] === monthOf(state.day, b) && e.when.date[1] === dayOfMonth(state.day, b));
+  if (holiday) {
+    push(state, holiday, undefined);
+    return;
+  }
   if (state.day - state.lastEventDay < cfg.balance.eventRules.minGapDays && state.lastEventDay > 0) return;
   for (const e of cfg.events) {
     if (!conditionOk(state, cfg, e)) continue;
