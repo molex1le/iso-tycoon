@@ -2,6 +2,7 @@ import { dateLabel, isQuarterEnd, monthEndOf, quarterEndOf } from './calendar';
 import { round2, gameLength, type GameConfig } from './config';
 import { say, usd } from './feed';
 import { loansDebt, monthlyLoanPayments } from './loans';
+import { buyerPaid } from './inventory';
 import { demandView, shiftsPerWeek } from './shop';
 import { earnedSoFar } from './staff';
 import type { ExpenseCategory, GameState } from './state';
@@ -47,7 +48,7 @@ export function rentMonthly(state: GameState, cfg: GameConfig): number {
 
 export function subscriptionsMonthly(state: GameState, cfg: GameConfig): number {
   const m = cfg.balance.marketing;
-  return (state.social ? m.social.monthly : 0) + (state.serviceContract ? m.serviceContract.monthly : 0);
+  return (state.social ? m.social.monthly : 0) + (state.serviceContract ? m.serviceContract.monthly : 0) + (buyerPaid(state, cfg) ? cfg.balance.inventory.buyerMonthly : 0);
 }
 
 /** Постоянные расходы за месяц: аренда, коммуналка, зарплаты со взносами, бухгалтер, подписки. */
@@ -67,7 +68,7 @@ export function payMonthEnd(state: GameState, cfg: GameConfig): number {
   spend(state, 'utilities', cfg.balance.costs.utilities);
   spend(state, 'payroll', payrollAccrued(state, cfg) + state.overtimeAccrued * (1 + cfg.balance.staff.contributions));
   for (const e of state.employees) e.shiftsWorked = 0;
-  spend(state, 'services', accountantMonthly(state, cfg) + (state.serviceContract ? m.serviceContract.monthly : 0));
+  spend(state, 'services', accountantMonthly(state, cfg) + (state.serviceContract ? m.serviceContract.monthly : 0) + (buyerPaid(state, cfg) ? cfg.balance.inventory.buyerMonthly : 0));
   spend(state, 'marketing', state.social ? m.social.monthly : 0);
   state.overtimeAccrued = 0;
   const paid = round2(before - state.cash);

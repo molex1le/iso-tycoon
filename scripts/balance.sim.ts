@@ -104,6 +104,11 @@ const bots: Record<string, Bot> = {
 function play(seed: number, bot: Bot, opts: NewGameOptions): GameState {
   const s = createInitialState(seed, { ...opts, ...bot.opts }, cfg);
   while (!s.finished) {
+    // ручные закупки: бот, как аккуратный игрок, раз в неделю пересчитывает заказ по спросу
+    if (s.autoOrder === false && s.day % 7 === 1 && s.lastRestockDay !== s.day) {
+      s.lastRestockDay = s.day;
+      applyCommand(s, { type: 'StandingBySuggestion' });
+    }
     bot.act(s);
     if (!s.finished && s.pending.length === 0) simulateDay(s, cfg);
   }

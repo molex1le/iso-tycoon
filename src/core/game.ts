@@ -47,6 +47,11 @@ export class Game {
     while (this.state.day < day && !this.state.finished && guard++ < 5000) {
       this.autoResolve();
       if (this.state.finished) break;
+      // при ручных закупках перемотка раз в неделю пересчитывает заказ, иначе склад опустеет
+      if (this.state.autoOrder === false && this.state.day % 7 === 1 && this.state.lastRestockDay !== this.state.day) {
+        this.state.lastRestockDay = this.state.day;
+        this.dispatch({ type: 'StandingBySuggestion' });
+      }
       // сценарию нужно дойти до цели: не даём партии обанкротиться по дороге
       if (keepAlive && this.state.cash < 2000) this.dispatch({ type: 'DebugAddMoney', amount: 5000 - this.state.cash });
       done += this.runDays(1);

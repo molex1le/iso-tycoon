@@ -121,7 +121,8 @@
       "unplannedMultiplier": 0.5,
       "unplannedNoticeDays": 3,
       "formalists": false,
-      "text": "Больше денег, проверки мягче, формалистов нет",
+      "text": "Больше денег, проверки мягче, формалистов нет, закупки идут сами",
+      "autoOrder": true,
       "advisor": true
     },
     "realism": {
@@ -130,7 +131,8 @@
       "unplannedMultiplier": 1,
       "unplannedNoticeDays": 1,
       "formalists": true,
-      "text": "Как в жизни: денег впритык",
+      "text": "Как в жизни: денег впритык, закупки на вас",
+      "autoOrder": false,
       "advisor": false
     },
     "survival": {
@@ -139,6 +141,7 @@
       "unplannedMultiplier": 1.4,
       "unplannedNoticeDays": 0,
       "formalists": true,
+      "autoOrder": false,
       "text": "Мало денег, внезапные проверки без уведомления",
       "advisor": false
     }
@@ -447,6 +450,22 @@
       "quality": -0.05,
       "documents": 0.5,
       "text": "−20% к цене, качество чуть ниже, срывы поставок, документы через раз"
+    },
+    "farm": {
+      "name": "«Фермерская лавка»",
+      "priceFactor": 0.92,
+      "failPerWeek": 0.08,
+      "quality": 0.04,
+      "documents": 0.8,
+      "text": "−8% к цене, продукты вкуснее, но бывают срывы и не на всё есть бумаги"
+    },
+    "premium": {
+      "name": "«Премиум»",
+      "priceFactor": 1.25,
+      "failPerWeek": 0.01,
+      "quality": 0.08,
+      "documents": 1,
+      "text": "+25% к цене, лучшее качество, срывов почти нет, документы всегда"
     }
   },
   "inventory": {
@@ -454,6 +473,11 @@
     "safetyMin": 1.0,
     "safetyMax": 2.0,
     "safetyStep": 0.1,
+    "buyerMonthly": 150,
+    "urgentPriceFactor": 1.25,
+    "standingStep": 5,
+    "standingMax": 2000,
+    "urgentMax": 500,
     "noFridgeShelfLifeDays": 2
   },
   "taxes": {

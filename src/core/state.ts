@@ -17,7 +17,7 @@ import {
   type SupplierId,
   type TaxRegimeId,
 } from './config';
-import { orderQuantity, shelfLife } from './inventory';
+import { orderQuantity, shelfLife, suggestedStanding } from './inventory';
 import { makeLoan } from './loans';
 import { nextRandom, seedToState } from './rng';
 
@@ -202,6 +202,8 @@ export interface NewGameOptions {
   startLoan: number;
   /** первые два бариста: официально или «в конверте» */
   startStaffOfficial: boolean;
+  /** поставщик, выбранный в мастере старта */
+  supplier?: SupplierId;
 }
 
 export interface SetupLine {
@@ -270,6 +272,14 @@ export interface GameState {
   overtimeAccrued: number;
   /** график смен расставляется сам; выключается, когда игрок правит его руками */
   autoShifts?: boolean;
+  /** закупки идут сами (на «Реализме» и «Выживании» – платный закупщик); false – игрок заказывает сам */
+  autoOrder?: boolean;
+  /** ручной режим: сколько порций привозить с каждой поставкой */
+  standing?: Record<string, number>;
+  /** день последнего пересчёта заказа (боты и перемотка разработчика) */
+  lastRestockDay?: number;
+  /** срочный дозаказ: приедет завтра утром */
+  urgent?: Record<string, number>;
   /** чат с командой: последние сообщения */
   chat?: { day: number; from: string; text: string }[];
   lastPraiseDay?: number;
@@ -414,7 +424,10 @@ export function createInitialState(seed: number, options?: NewGameOptions, cfg: 
     reputation: b.reputation.start,
     weekSatisfaction: [],
     equipment,
-    supplier: 'reliable',
+    supplier: opts.supplier ?? 'reliable',
+    autoOrder: difficulty.autoOrder,
+    standing: {},
+    urgent: {},
     safetyFactor: b.inventory.safetyDefault,
     posts: 1,
     employees: b.staff.start.map((e, i) => ({
@@ -481,8 +494,10 @@ export function createInitialState(seed: number, options?: NewGameOptions, cfg: 
   let firstPurchase = 0;
   for (const m of cfg.materials) {
     const qty = orderQuantity(state, m, cfg);
-    state.inventory[m.id] = qty > 0 ? [{ qty, expiresDay: shelfLife(state, m, cfg), unitCost: m.cost }] : [];
-    firstPurchase += qty * m.cost;
+    const unitCost = round2(m.cost * b.suppliers[state.supplier].priceFactor);
+    state.inventory[m.id] = qty > 0 ? [{ qty, expiresDay: shelfLife(state, m, cfg), unitCost }] : [];
+    firstPurchase += qty * unitCost;
+    state.standing![m.id] = suggestedStanding(state, m, cfg);
   }
   setup.push({ id: 'firstPurchase', name: 'Первая закупка продуктов', amount: round2(firstPurchase) });
 

@@ -5,6 +5,7 @@ import { clamp, defaultConfig, round2, type AccountingId, type AgencyId, type Eq
 import { chooseOption } from './events';
 import { say, usd } from './feed';
 import { roleName } from './text';
+import { autoOrderOn, suggestedStanding } from './inventory';
 import { bonus, chatReact, praise } from './chat';
 import { syncShifts } from './shop';
 import { earnedSoFar } from './staff';
@@ -32,6 +33,10 @@ export type Command =
   | { type: 'IssueMedBook'; employeeId: number }
   | { type: 'SetSupplier'; supplier: SupplierId }
   | { type: 'SetSafety'; factor: number }
+  | { type: 'SetAutoOrder'; on: boolean }
+  | { type: 'SetStanding'; materialId: string; qty: number }
+  | { type: 'StandingBySuggestion' }
+  | { type: 'UrgentOrder'; materialId: string; qty: number }
   | { type: 'SetLateWriteOff'; on: boolean }
   | { type: 'BuyEquipment'; id: EquipmentId }
   | { type: 'Clean' }
@@ -156,6 +161,34 @@ function run(state: GameState, command: Command, cfg: GameConfig): boolean {
     case 'AutoShifts': {
       state.autoShifts = true;
       syncShifts(state);
+      return true;
+    }
+    case 'SetAutoOrder': {
+      if (autoOrderOn(state) === command.on) return false;
+      state.autoOrder = command.on;
+      // переходя на ручные закупки, начинаем с разумных количеств
+      if (!command.on) for (const m of cfg.materials) (state.standing ??= {})[m.id] = suggestedStanding(state, m, cfg);
+      return true;
+    }
+    case 'SetStanding': {
+      const inv = b.inventory;
+      if (!cfg.materials.some((m) => m.id === command.materialId) || !Number.isFinite(command.qty)) return false;
+      const qty = clamp(Math.round(command.qty / inv.standingStep) * inv.standingStep, 0, inv.standingMax);
+      if (qty === (state.standing?.[command.materialId] ?? 0)) return false;
+      (state.standing ??= {})[command.materialId] = qty;
+      return true;
+    }
+    case 'StandingBySuggestion': {
+      for (const m of cfg.materials) (state.standing ??= {})[m.id] = suggestedStanding(state, m, cfg);
+      return true;
+    }
+    case 'UrgentOrder': {
+      const inv = b.inventory;
+      if (!cfg.materials.some((m) => m.id === command.materialId) || !Number.isFinite(command.qty) || command.qty <= 0) return false;
+      const now = state.urgent?.[command.materialId] ?? 0;
+      const qty = clamp(Math.round(now + command.qty), 0, inv.urgentMax);
+      if (qty === now) return false;
+      (state.urgent ??= {})[command.materialId] = qty;
       return true;
     }
     case 'SetPosts': {

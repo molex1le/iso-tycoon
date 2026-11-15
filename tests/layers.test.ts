@@ -444,3 +444,52 @@ describe('смены и зарплаты', () => {
     expect(cash - s.cash).toBeCloseTo(((e.salary * worked) / 15) * 1.34, 1);
   });
 });
+
+describe('закупки', () => {
+  it('«Учебка» – автозакупка бесплатно, «Реализм» – ручные, закупщик стоит денег', async () => {
+    const { buyerPaid, autoOrderOn } = await import('../src/core/inventory');
+    const { subscriptionsMonthly } = await import('../src/core/finance');
+    const t = createInitialState(1, { ...defaultOptions(base), difficulty: 'training' });
+    expect(autoOrderOn(t)).toBe(true);
+    expect(buyerPaid(t, base)).toBe(false);
+    const r = createInitialState(1);
+    expect(autoOrderOn(r)).toBe(false);
+    const before = subscriptionsMonthly(r, base);
+    expect(applyCommand(r, { type: 'SetAutoOrder', on: true })).toBe(true);
+    expect(subscriptionsMonthly(r, base) - before).toBe(base.balance.inventory.buyerMonthly);
+  });
+
+  it('ручной заказ: привозят ровно столько, сколько указано, даже если склад полон', async () => {
+    const { stockQty } = await import('../src/core/inventory');
+    const s = createInitialState(2);
+    applyCommand(s, { type: 'SetStanding', materialId: 'pastry', qty: 200 });
+    expect(s.standing!.pastry).toBe(200);
+    simulateDay(s);
+    const left = stockQty(s, 'pastry');
+    simulateDay(s);
+    // утром второго дня приехало 200, за день продали меньше
+    expect(s.history[1].expenses.purchases).toBeGreaterThan(200 * 1.0 - 0.01);
+    expect(stockQty(s, 'pastry')).toBeGreaterThan(left + 100);
+  });
+
+  it('срочный дозаказ приезжает на следующее утро и стоит на четверть дороже', async () => {
+    const { stockQty } = await import('../src/core/inventory');
+    const s = createInitialState(2);
+    for (const m of base.materials) applyCommand(s, { type: 'SetStanding', materialId: m.id, qty: 0 });
+    simulateDay(s);
+    const before = stockQty(s, 'tea');
+    expect(applyCommand(s, { type: 'UrgentOrder', materialId: 'tea', qty: 40 })).toBe(true);
+    const r = simulateDay(s);
+    expect(r.expenses.purchases).toBeCloseTo(40 * 0.2 * 1.25, 2);
+    expect(stockQty(s, 'tea')).toBeGreaterThan(before + 20);
+    expect(s.urgent).toEqual({});
+  });
+
+  it('поставщик из мастера старта: «Премиум» дороже и качественнее', () => {
+    const a = createInitialState(3);
+    const p = createInitialState(3, { ...defaultOptions(base), supplier: 'premium' });
+    expect(p.supplier).toBe('premium');
+    expect(p.cash).toBeLessThan(a.cash);
+    expect(demandView(p, base).quality).toBeGreaterThan(demandView(a, base).quality);
+  });
+});

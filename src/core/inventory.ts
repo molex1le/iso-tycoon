@@ -36,11 +36,36 @@ export function orderQuantity(state: GameState, m: Material, cfg: GameConfig): n
   return Math.max(0, Math.ceil(need - stockQty(state, m.id)));
 }
 
-/** Утренние поставки по автозаказу. */
+/** Сколько разумно привозить с каждой поставкой при текущем спросе. */
+export function suggestedStanding(state: GameState, m: Material, cfg: GameConfig): number {
+  const step = cfg.balance.inventory.standingStep;
+  return Math.ceil((expectedDailyUsage(state, cfg)[m.id] * m.deliveryEveryDays * state.safetyFactor) / step) * step;
+}
+
+/** Закупки идут сами: в «Учебке» всегда, на других сложностях – пока нанят закупщик. */
+export function autoOrderOn(state: GameState): boolean {
+  return state.autoOrder !== false;
+}
+
+/** Платит ли игрок закупщику. */
+export function buyerPaid(state: GameState, cfg: GameConfig): boolean {
+  return autoOrderOn(state) && !cfg.balance.difficulties[state.options.difficulty].autoOrder;
+}
+
+/** Утренние поставки: автозаказ или постоянный заказ игрока, плюс срочные дозаказы. */
 export function receiveDeliveries(state: GameState, cfg: GameConfig): void {
   const supplier = cfg.balance.suppliers[state.supplier];
   if (accountBlocked(state, cfg)) return;
   const failed: string[] = [];
+  // срочный дозаказ приезжает всегда, но дороже
+  for (const m of cfg.materials) {
+    const qty = state.urgent?.[m.id] ?? 0;
+    if (qty <= 0) continue;
+    const unitCost = round2(m.cost * supplier.priceFactor * costFactor(state) * cfg.balance.inventory.urgentPriceFactor);
+    state.inventory[m.id].push({ qty, expiresDay: state.day + shelfLife(state, m, cfg) - 1, unitCost });
+    spend(state, 'purchases', qty * unitCost, supplier.documents);
+  }
+  state.urgent = {};
   for (const m of cfg.materials) {
     if ((state.day - 1) % m.deliveryEveryDays !== 0) continue;
     const failChance = 1 - Math.pow(1 - supplier.failPerWeek, m.deliveryEveryDays / 7);
@@ -48,7 +73,7 @@ export function receiveDeliveries(state: GameState, cfg: GameConfig): void {
       failed.push(m.name);
       continue;
     }
-    const qty = orderQuantity(state, m, cfg);
+    const qty = autoOrderOn(state) ? orderQuantity(state, m, cfg) : (state.standing?.[m.id] ?? 0);
     if (qty <= 0) continue;
     const unitCost = round2(m.cost * supplier.priceFactor * costFactor(state));
     state.inventory[m.id].push({ qty, expiresDay: state.day + shelfLife(state, m, cfg) - 1, unitCost });
