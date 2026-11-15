@@ -24,12 +24,65 @@ export interface MenuHooks {
 
 const WORLDS: [string, boolean][] = [['Кофейня', true], ['Доставка', false], ['Производство', false], ['Агентство', false], ['Банк', false]];
 
+/** Живой город на заднем плане главного меню: один на все перерисовки меню. */
+let bgHost: HTMLElement | null = null;
+let bgScene: SceneView | null = null;
+
+function mountMenuBackground(root: HTMLElement): void {
+  const slot = root.querySelector('.st-bg-slot');
+  if (!slot) return;
+  if (bgHost && bgScene) {
+    slot.replaceWith(bgHost);
+    return;
+  }
+  bgHost = document.createElement('div');
+  bgHost.className = 'st-bg';
+  bgHost.setAttribute('aria-hidden', 'true');
+  slot.replaceWith(bgHost);
+  const scene = new SceneView(bgHost, () => {}, 'metro');
+  bgScene = scene;
+  const host = bgHost;
+  const started = performance.now();
+  let prev = started;
+  const tick = (now: number) => {
+    // меню закрыли – сцену убираем
+    if (!host.isConnected) {
+      scene.destroy();
+      if (bgScene === scene) {
+        bgScene = null;
+        bgHost = null;
+      }
+      return;
+    }
+    // сутки в меню идут медленно: полный круг за четыре минуты, старт – утро
+    const hour = (8 + ((now - started) / 1000) * 0.1) % 24;
+    scene.setLook({ title: 'Кофейня', signage: true, pro: false, furniture: true, closed: false }, 'player');
+    scene.setFlow({ traffic: 900, pPlayer: 0.12, pRivals: [0.08, 0.05], playerOpen: true, queue: 2 });
+    scene.frame(Math.min(0.1, (now - prev) / 1000), 1, hour);
+    prev = now;
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+
+const FEATURES: [string, string][] = [
+  ['Проверки', 'СЭС, пожарная, трудовая и налоговая. К каждой можно подготовиться.'],
+  ['Деньги', 'Налоги, кредиты, аренда. Подушка тает быстрее, чем кажется.'],
+  ['Люди', 'Смены, зарплаты, настроение. Команда пишет вам в чат.'],
+  ['Конкуренты', 'Снижают цены, переманивают бариста, строятся рядом.'],
+];
+
 export function mountMainMenu(root: HTMLElement, hooks: MenuHooks, error = ''): void {
   delete document.documentElement.dataset.theme;
   root.innerHTML = `
-  <div class="it st"><div>
-    <div class="st-logo">Iso Tycoon</div>
-    <div class="st-sub">Открой кофейню и попробуй не закрыться</div>
+  <div class="it st st-home"><div class="st-bg-slot"></div><div class="st-veil"></div>
+   <div class="st-home-grid">
+    <div class="st-hero">
+      <div class="st-logo"><svg class="st-cup" viewBox="0 0 48 48" aria-hidden="true"><path d="M8 18h26v10a12 12 0 0 1-12 12h-2A12 12 0 0 1 8 28z" fill="var(--brick)"/><path d="M34 21h3a5 5 0 0 1 0 10h-3" fill="none" stroke="var(--brick)" stroke-width="4"/><path d="M15 6c-2 3 2 4 0 8M22 5c-2 3 2 4 0 8M29 6c-2 3 2 4 0 8" fill="none" stroke="var(--coin-shade, #c98a1a)" stroke-width="2.5" stroke-linecap="round"/><rect x="5" y="41" width="32" height="3" rx="1.5" fill="var(--ink)"/></svg>Iso Tycoon</div>
+      <div class="st-sub">Открой кофейню и попробуй не закрыться</div>
+      <div class="st-feats">${FEATURES.map(([t, d]) => `<div class="st-feat"><b>${t}</b><span>${d}</span></div>`).join('')}</div>
+      <div class="st-ver">Мир «Кофейня» · версия для плейтеста</div>
+    </div>
     <div class="it-panel st-menu">
       <div class="lbl">Сохранения</div>
       ${hooks.slots.map((x, i) => slotHtml(x, i, i === hooks.active, confirmDelete === i)).join('')}
@@ -37,9 +90,10 @@ export function mountMainMenu(root: HTMLElement, hooks: MenuHooks, error = ''): 
       ${error ? `<div class="loss">${error}</div>` : ''}
       <div class="lbl">Звук</div>${audioControlsHtml()}
       <div class="lbl">Миры</div>
-      <div class="st-worlds">${WORLDS.map(([n, open]) => `<div class="st-world ${open ? '' : 'lock'}">${open ? '' : '🔒 '}${n}</div>`).join('')}</div>
+      <div class="st-worlds">${WORLDS.map(([n, open]) => `<div class="st-world ${open ? 'on' : 'lock'}">${n}${open ? '' : '<span>скоро</span>'}</div>`).join('')}</div>
     </div>
-  </div></div>`;
+   </div></div>`;
+  mountMenuBackground(root);
   const file = root.querySelector<HTMLInputElement>('[data-file]')!;
   root.querySelector('.st')!.addEventListener('input', (e) => {
     const t = e.target as HTMLInputElement;
